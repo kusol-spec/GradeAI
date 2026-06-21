@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GradeAI - ระบบตรวจประเมินผลสัมฤทธิ์ด้านคอมพิวเตอร์ด้วย AI</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Inter & Sarabun) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- MathJax for high-quality math expressions ($O(N)$, $O(\log N)$) -->
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es6/tex-mml-chtml.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Sarabun', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        teal: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            200: '#99f6e4',
+                            300: '#5eead4',
+                            400: '#2dd4bf',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                            800: '#115e59',
+                            900: '#134e4a',
+                            950: '#042f2e',
+                        },
+                        slate: {
+                            950: '#0f172a'
+                        }
+                    },
+                    boxShadow: {
+                        'premium': '0 10px 30px -5px rgba(20, 184, 166, 0.08), 0 4px 12px -5px rgba(0, 0, 0, 0.03)',
+                        'glow': '0 0 20px rgba(20, 184, 166, 0.15)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* SVG Circle gauge animation and smooth styles */
+        @keyframes fillGauge {
+            to {
+                stroke-dashoffset: var(--target-offset);
+            }
+        }
+        .gauge-circle {
+            transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.5s ease;
+            stroke-linecap: round;
+        }
+
+        /* Smooth slide and opacity transitions */
+        .fade-in-view {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* AI highlight pulse effect */
+        .ai-highlight {
+            position: relative;
+            background: linear-gradient(120deg, rgba(253, 224, 71, 0.3) 0%, rgba(253, 224, 71, 0.5) 100%);
+            border-bottom: 2px dashed #eab308;
+            border-radius: 2px;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .ai-highlight:hover {
+            background: linear-gradient(120deg, rgba(253, 224, 71, 0.5) 0%, rgba(253, 224, 71, 0.7) 100%);
+            box-shadow: 0 2px 10px rgba(234, 179, 8, 0.15);
+        }
+
+        /* Print styling overrides */
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-full {
+                width: 100% !important;
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-[#f8fafc] text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-teal-200 selection:text-teal-900">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- Global Loading Overlay (shown while fetching real data from Google Sheets) -->
+    <div id="loading-overlay" class="fixed inset-0 z-40 bg-[#f8fafc] flex flex-col items-center justify-center gap-4 no-print">
+        <div class="w-12 h-12 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
+        <p class="text-xs font-bold text-slate-500">กำลังเชื่อมต่อฐานข้อมูล Google Sheets...</p>
+    </div>
+
+    <!-- Backend Not Configured Overlay -->
+    <div id="setup-required-overlay" class="hidden fixed inset-0 z-40 bg-[#f8fafc] flex items-center justify-center p-6 no-print">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-premium p-8 max-w-md w-full text-center">
+            <div class="bg-amber-50 text-amber-600 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <i class="fa-solid fa-database text-2xl"></i>
+            </div>
+            <h3 class="text-base font-extrabold text-slate-800 mb-2">ยังไม่ได้เชื่อมต่อฐานข้อมูล</h3>
+            <p class="text-xs text-slate-500 mb-5 leading-relaxed">กรุณาตั้งค่า Google Apps Script Web App URL เพื่อเชื่อมต่อกับฐานข้อมูล Google Sheets ก่อนเริ่มใช้งานระบบ</p>
+            <div class="space-y-3">
+                <input type="url" id="setup-gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none">
+                <button onclick="saveInitialGasUrl()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all">เชื่อมต่อและเริ่มใช้งาน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container Layout -->
+    <div class="flex flex-1 overflow-hidden h-screen w-full relative">
+
+        <!-- SIDEBAR PANEL -->
+        <aside class="w-20 md:w-64 bg-slate-950 text-slate-300 flex flex-col flex-shrink-0 transition-all duration-300 z-30 no-print border-r border-slate-900 shadow-2xl">
+            <!-- Sidebar Header / Brand Logo -->
+            <div class="h-16 flex items-center justify-center md:justify-start px-5 bg-slate-900/50 border-b border-slate-900 gap-3">
+                <div class="bg-gradient-to-tr from-teal-500 to-teal-600 text-white p-2 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/20 w-10 h-10">
+                    <i class="fa-solid fa-laptop-code text-lg"></i>
+                </div>
+                <div class="hidden md:block">
+                    <span class="font-extrabold text-white text-base tracking-wider block leading-none">Grade<span class="text-teal-400">AI</span></span>
+                    <span class="text-[9px] text-teal-500 font-bold tracking-widest uppercase mt-1 block">วิศวกรรมสถาปัตยกรรม</span>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto">
+                <button onclick="switchSidebarTab('dashboard')" id="nav-dashboard" class="sidebar-tab w-full flex items-center justify-center md:justify-start gap-4 px-3.5 py-3 rounded-xl transition-all duration-200 text-white bg-teal-900/40 border border-teal-800/30 shadow-md">
+                    <i class="fa-solid fa-chart-line text-base w-5 text-center text-teal-400"></i>
+                    <span class="font-semibold text-xs md:text-sm hidden md:block">แดชบอร์ดผู้สอน</span>
+                </button>
+                <button onclick="openCreateModal()" class="w-full flex items-center justify-center md:justify-start gap-4 px-3.5 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition-all duration-200">
+                    <i class="fa-solid fa-circle-plus text-base w-5 text-center text-teal-500"></i>
+                    <span class="font-medium text-xs md:text-sm hidden md:block">ส่งโครงงาน/ซอร์สโค้ด</span>
+                </button>
+                <button onclick="switchSidebarTab('rubrics')" id="nav-rubrics" class="sidebar-tab w-full flex items-center justify-center md:justify-start gap-4 px-3.5 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition-all duration-200">
+                    <i class="fa-solid fa-code-branch text-base w-5 text-center"></i>
+                    <span class="font-medium text-xs md:text-sm hidden md:block">คลังเกณฑ์รูบิก</span>
+                </button>
+                <button onclick="switchSidebarTab('settings')" id="nav-settings" class="sidebar-tab w-full flex items-center justify-center md:justify-start gap-4 px-3.5 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition-all duration-200">
+                    <i class="fa-solid fa-sliders text-base w-5 text-center"></i>
+                    <span class="font-medium text-xs md:text-sm hidden md:block">ตั้งค่าระบบประเมิน</span>
+                </button>
+            </nav>
+
+            <!-- Sidebar User Card Footer -->
+            <div class="p-4 border-t border-slate-900 bg-slate-900/30 hidden md:flex items-center gap-3">
+                <img src="https://placehold.co/100x100/0f766e/ffffff?text=CS" alt="User Profile" class="w-10 h-10 rounded-xl border border-teal-600/30 object-cover">
+                <div class="overflow-hidden">
+                    <h4 class="text-xs font-bold text-white truncate leading-tight">ดร. สาริณี เจนกิจ</h4>
+                    <span class="text-[10px] text-teal-400 truncate block mt-0.5 font-medium">วิทยาการคอมพิวเตอร์</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN VIEW WORKSPACE -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-[#f8fafc]">
+            
+            <!-- Global Header -->
+            <header class="h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between flex-shrink-0 z-20 no-print shadow-sm">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-base md:text-lg font-extrabold text-slate-800 tracking-tight" id="main-view-title">แดชบอร์ดผู้สอน</h2>
+                    <span id="breadcrumb-arrow" class="text-slate-400 text-xs hidden"><i class="fa-solid fa-chevron-right"></i></span>
+                    <span id="breadcrumb-student" class="text-xs bg-teal-50 text-teal-800 font-bold px-3 py-1 rounded-full border border-teal-100/60 shadow-sm hidden">ณัฐดนัย สมบูรณ์</span>
+                </div>
+
+                <!-- Header Actions Menu -->
+                <div class="flex items-center gap-3">
+                    <!-- Status Cloud Indicator -->
+                    <div id="cloud-sync-status" class="hidden sm:flex items-center gap-1.5 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/50 px-2.5 py-1 rounded-xl">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                        เชื่อมต่อแบบโลคอล
+                    </div>
+
+                    <!-- Notification Dropdown -->
+                    <div class="relative">
+                        <button onclick="toggleNotifications()" class="p-2.5 text-slate-500 hover:text-teal-600 hover:bg-slate-50 rounded-xl transition-all relative">
+                            <i class="fa-regular fa-bell text-lg"></i>
+                            <span class="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+                        </button>
+                        
+                        <!-- Mini Notification Dialog -->
+                        <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2.5 z-50 text-xs">
+                            <div class="px-4 py-2 border-b border-slate-100 font-bold text-slate-800 flex justify-between items-center">
+                                <span class="text-xs">การแจ้งเตือนระบบ</span>
+                                <span class="text-[10px] text-teal-600 cursor-pointer font-bold hover:underline">อ่านทั้งหมด</span>
+                            </div>
+                            <div class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                                <div class="px-4 py-3 hover:bg-slate-50 transition-colors">
+                                    <p class="font-bold text-slate-800 text-[11px]">อัปโหลดซอร์สโค้ดวิทยานิพนธ์ใหม่</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">เอธาน เฉิน ส่งไฟล์ "โมเดลจำแนกภาพถ่ายทางการแพทย์ด้วย CNN"</p>
+                                    <span class="text-[9px] text-teal-600 font-bold mt-1 block">2 นาทีที่แล้ว</span>
+                                </div>
+                                <div class="px-4 py-3 hover:bg-slate-50 transition-colors">
+                                    <p class="font-bold text-slate-800 text-[11px]">AI ตรวจวิเคราะห์สถาปัตยกรรมเสร็จสิ้น</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">ระบบ "Query Optimization & DB Sharding" ได้รับการให้คะแนนแล้ว</p>
+                                    <span class="text-[9px] text-teal-600 font-bold mt-1 block">1 ชั่วโมงที่แล้ว</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PDF Print/Export -->
+                    <button onclick="triggerPrintExport()" class="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all border border-teal-700/20 shadow-md shadow-teal-600/10 hover:shadow-teal-600/20">
+                        <i class="fa-solid fa-file-pdf text-sm"></i>
+                        <span class="hidden sm:inline">ส่งออกรายงาน PDF</span>
+                    </button>
+
+                    <!-- Instructor Info Panel -->
+                    <div class="flex items-center gap-2.5 pl-3 border-l border-slate-200 hidden sm:flex">
+                        <img src="https://placehold.co/100x100/0f766e/ffffff?text=CS" alt="Sarah Mini Profile" class="w-8 h-8 rounded-lg object-cover border border-slate-200">
+                        <span class="text-xs font-bold text-slate-700 hidden lg:inline">ดร. สาริณี</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- VIEW 1: MAIN HOME/DASHBOARD VIEW -->
+            <div id="view-dashboard" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 fade-in-view">
+                
+                <!-- Welcome Banner & Quick Action Cards Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <!-- Create New Card -->
+                    <div onclick="openCreateModal()" class="lg:col-span-1 bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-teal-500 hover:shadow-premium group transition-all duration-300 relative overflow-hidden min-h-[220px]">
+                        <div class="absolute inset-0 bg-gradient-to-tr from-teal-50/20 via-transparent to-transparent pointer-events-none"></div>
+                        <div class="bg-teal-50 text-teal-600 p-4 rounded-2xl group-hover:scale-105 transition-transform duration-300 shadow-inner mb-4">
+                            <i class="fa-solid fa-plus text-xl"></i>
+                        </div>
+                        <h3 class="text-sm font-extrabold text-slate-800">ส่งชิ้นงานคอมพิวเตอร์ใหม่</h3>
+                        <p class="text-[11px] text-slate-500 mt-1.5 max-w-xs leading-relaxed">
+                            อัปโหลดโครงงานพัฒนาซอฟต์แวร์ ซอร์สโค้ด หรือโครงสร้างความสัมพันธ์ระบบเครือข่าย เพื่อประมวลผลผ่านโมเดลสแกนความซับซ้อนของ AI
+                        </p>
+                    </div>
+
+                    <!-- Statistics Card -->
+                    <div class="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col justify-between shadow-premium relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                            <i class="fa-solid fa-robot text-8xl text-teal-600"></i>
+                        </div>
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                            <div>
+                                <h3 class="text-sm font-extrabold text-slate-800">ประสิทธิภาพเฉลี่ยสัปดาห์นี้</h3>
+                                <p class="text-[11px] text-slate-500 mt-0.5">ภาพรวมอัตราการผ่านทดสอบ (Test Pass Rate) และความครบถ้วนของโครงงานคอมพิวเตอร์</p>
+                            </div>
+                            <span class="text-[10px] bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-lg text-teal-700 font-bold">เทอม 1/2026</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 pt-5 text-center">
+                            <div>
+                                <span id="stat-avg-score" class="block text-2xl font-black text-teal-600">–</span>
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-1">คะแนนประเมินเฉลี่ย</span>
+                            </div>
+                            <div class="border-x border-slate-100">
+                                <span id="stat-graded-count" class="block text-2xl font-black text-teal-600">–</span>
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-1">ชิ้นงานที่ตรวจแล้ว</span>
+                            </div>
+                            <div>
+                                <span id="stat-pass-rate" class="block text-2xl font-black text-amber-500">–</span>
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-1">อัตราผ่านเกณฑ์ประเมิน</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Submissions Table Grid -->
+                <div class="bg-white border border-slate-200/80 rounded-2xl shadow-premium overflow-hidden">
+                    <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 class="font-extrabold text-slate-800 text-sm md:text-base">ตารางประเมินโครงงานและการพัฒนาล่าสุด</h3>
+                            <p class="text-[11px] text-slate-500 mt-0.5">ประเมินความปลอดภัยสอดคล้องตามเกณฑ์วิทยาการคอมพิวเตอร์ อัลกอริทึม และประสิทธิภาพเชิงลึก $O(N)$</p>
+                        </div>
+                        <div class="flex items-center gap-3 w-full md:w-auto">
+                            <!-- Refresh From Live Database Button -->
+                            <button onclick="manualRefreshData()" class="no-print bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all">
+                                <i class="fa-solid fa-arrows-rotate text-emerald-600"></i>
+                                รีเฟรชข้อมูลจาก Sheets
+                            </button>
+                            <div class="relative w-full md:w-64">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                <input type="text" id="search-input" onkeyup="filterAssessments()" placeholder="ค้นชื่อผลงาน, นักศึกษา หรือรหัสย่อ..." class="pl-9 pr-4 py-2 w-full text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 bg-white shadow-inner">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Responsive Table Container -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-100 bg-slate-50/30 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <th class="py-4 px-6">ชื่อชิ้นงานวิจัย / โครงงานซอฟต์แวร์</th>
+                                    <th class="py-4 px-6">วันที่วิเคราะห์</th>
+                                    <th class="py-4 px-6">นักศึกษา</th>
+                                    <th class="py-4 px-6 text-center">คะแนนโดยรวม / สถานะ</th>
+                                    <th class="py-4 px-6 text-right">เครื่องมือ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assessments-table-body" class="divide-y divide-slate-100 text-xs">
+                                <!-- Populated Dynamically via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW 2: RESULTS & EVALUATION SPLIT PANEL -->
+            <div id="view-evaluation" class="hidden flex-1 overflow-hidden flex flex-col lg:flex-row h-full fade-in-view">
+                
+                <!-- Left Split Panel: Student Project Preview -->
+                <div class="flex-1 overflow-y-auto border-r border-slate-200/80 bg-slate-50 p-4 md:p-6 flex flex-col gap-4">
+                    <!-- Control / Navigation Strip -->
+                    <div class="flex items-center justify-between no-print gap-3">
+                        <button onclick="goBackToDashboard()" class="flex items-center gap-2 text-slate-700 hover:text-white hover:bg-slate-800 font-bold text-xs transition-all bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm">
+                            <i class="fa-solid fa-arrow-left-long"></i>
+                            กลับหน้าแดชบอร์ด
+                        </button>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-3.5 py-1.5 rounded-full border border-emerald-100/60 shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-database text-emerald-600"></i> ข้อมูลจริงจาก Google Sheets</span>
+                            <span class="text-[10px] text-teal-800 font-bold bg-teal-50 px-3.5 py-1.5 rounded-full border border-teal-100/60 shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-code text-teal-600"></i> โหมดสแกนสถาปัตยกรรม</span>
+                        </div>
+                    </div>
+
+                    <!-- Student Essay/Code Work Sheet Document -->
+                    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/40 p-6 md:p-8 border border-slate-200/60 flex-1 min-h-[500px] flex flex-col">
+                        <!-- Header Meta Info -->
+                        <div class="border-b border-slate-100 pb-5 mb-5">
+                            <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                <div>
+                                    <h1 id="eval-doc-title" class="text-base md:text-lg font-extrabold text-slate-900 leading-snug">สถาปัตยกรรม Microservices และคิวรีฐานข้อมูลประสิทธิภาพสูง</h1>
+                                    <p class="text-xs text-slate-500 mt-1">ผู้ส่งโครงงาน: <span id="eval-student-name" class="font-bold text-slate-700">สุชาดา มาร์ติเนซ</span></p>
+                                </div>
+                                <span class="text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">ID: PROJ-COMP-2026</span>
+                            </div>
+                        </div>
+
+                        <!-- Main Text Body Container -->
+                        <div id="eval-essay-text" class="prose prose-teal text-slate-700 leading-relaxed text-xs md:text-sm flex-1 space-y-4 font-normal">
+                            <!-- Populated Dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Split Panel: AI Results & Criteria Breakdown -->
+                <div class="w-full lg:w-[460px] xl:w-[520px] bg-white overflow-y-auto border-t lg:border-t-0 lg:border-l border-slate-200/80 flex flex-col divide-y divide-slate-100 no-print flex-shrink-0">
+                    
+                    <!-- AI Gauge Meter Visualization -->
+                    <div class="p-6 bg-slate-50/50 flex flex-col items-center justify-center text-center gap-4">
+                        <div class="self-start text-[10px] font-extrabold uppercase tracking-widest text-teal-800 flex items-center gap-1.5">
+                            <i class="fa-solid fa-robot text-teal-600"></i> วิเคราะห์โครงสร้างโดยระบบ AI
+                        </div>
+
+                        <!-- Progress Circle -->
+                        <div class="relative flex items-center justify-center h-36 w-36 mt-2">
+                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="42" stroke="#f1f5f9" stroke-width="8" fill="transparent" />
+                                <circle id="gauge-progress" cx="50" cy="50" r="42" stroke="#0d9488" stroke-width="8" fill="transparent"
+                                        stroke-dasharray="263.89" stroke-dashoffset="263.89" class="gauge-circle" />
+                            </svg>
+                            <!-- Score Display Text inside circle -->
+                            <div class="absolute flex flex-col items-center">
+                                <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">คะแนนรวมสถาปัตย์</span>
+                                <span id="gauge-score-text" class="text-2xl font-black text-slate-800 tracking-tight mt-0.5">82<span class="text-xs text-slate-400">/100</span></span>
+                            </div>
+                        </div>
+
+                        <p class="text-[10px] text-slate-500 max-w-xs mt-1 leading-relaxed">
+                            เกรดเฉลี่ยคำนวณตามมาตรฐานโครงสร้างฐานข้อมูล Clean Code และการเลือกออกแบบความมั่นคงของสถาปัตยกรรมโครงงาน
+                        </p>
+                    </div>
+
+                    <!-- Scores & Recommendations Accordion Panel -->
+                    <div class="p-5 space-y-4">
+                        <h4 class="font-extrabold text-slate-800 text-xs md:text-sm flex items-center gap-2 mb-3">
+                            <i class="fa-solid fa-list-check text-teal-600"></i> คะแนนเจาะลึกวิเคราะห์ตามเกณฑ์รูบิก
+                        </h4>
+
+                        <div class="space-y-3" id="criteria-accordion-container">
+                            <!-- Accordion Items Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW 3: RUBRICS LIBRARY VIEW -->
+            <div id="view-rubrics" class="hidden flex-1 overflow-y-auto p-4 md:p-6 space-y-6 fade-in-view">
+                <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-premium">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div>
+                            <h3 class="text-base md:text-lg font-extrabold text-slate-800 mb-1">คลังเกณฑ์การให้คะแนนคอมพิวเตอร์ (Rubrics Library)</h3>
+                            <p class="text-xs text-slate-500">ปรับแต่งสเปกคะแนนเต็มตามแต่ละคุณลักษณะโครงสร้าง เช่น ประสิทธิภาพการเขียนโปรแกรมและการจัดการระบบ</p>
+                        </div>
+                        <button onclick="openRubricModal()" class="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-md shadow-teal-600/10">
+                            <i class="fa-solid fa-plus"></i>
+                            สร้างเกณฑ์ประเมินใหม่
+                        </button>
+                    </div>
+
+                    <!-- Interactive Rubrics Grid -->
+                    <div id="rubrics-grid-container" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW 4: SYSTEM SETTINGS VIEW -->
+            <div id="view-settings" class="hidden flex-1 overflow-y-auto p-4 md:p-6 space-y-6 fade-in-view">
+                <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-premium max-w-3xl">
+                    <h3 class="text-base md:text-lg font-extrabold text-slate-800 mb-1.5">ตั้งค่าพารามิเตอร์การวิเคราะห์ซอร์สโค้ด</h3>
+                    <p class="text-xs text-slate-500 mb-6 font-medium">จัดการระดับความเข้มงวด มาตรฐานการประเมินสถาปัตยกรรมคอมพิวเตอร์ และการเชื่อมต่อคลาวด์/GitHub Pages</p>
+                    
+                    <div class="space-y-6">
+                        <!-- Google Sheets Database Connection panel -->
+                        <div class="border-t border-slate-100 pt-5">
+                            <h4 class="text-xs font-black text-emerald-800 uppercase mb-3 tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-database text-emerald-600"></i> การเชื่อมต่อฐานข้อมูลจริง (Google Sheets ผ่าน Apps Script)
+                            </h4>
+                            <p class="text-[11px] text-slate-500 mb-4">
+                                ข้อมูลเกณฑ์ประเมินและผลคะแนนทั้งหมดของระบบนี้เก็บอยู่ใน Google Sheets จริง ผ่าน Google Apps Script Web App — ไม่มีการเก็บข้อมูลจำลองไว้ในเบราว์เซอร์อีกต่อไป ระบบ AI ตรวจให้คะแนนจะเรียกใช้ Gemini API จริงผ่านเซิร์ฟเวอร์ Apps Script (คีย์ API เก็บไว้อย่างปลอดภัยฝั่งเซิร์ฟเวอร์ ไม่หลุดมาที่เบราว์เซอร์)
+                            </p>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-600 mb-1">Google Apps Script Web App URL (ฐานข้อมูลหลักของระบบ)</label>
+                                    <input type="url" id="settings-gas-url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none bg-white">
+                                    <p class="text-[9px] text-slate-400 mt-1">คัดลอก Web App URL ที่ได้จากการ Deploy Apps Script (Code.gs) มาวางที่นี่ — ดูขั้นตอนเต็มในไฟล์ SETUP.md ที่แนบมา</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-5">
+                            <label class="block text-[10px] font-black text-slate-700 uppercase mb-2 tracking-wider">โมเดลประมวลผลโค้ดคอมพิวเตอร์หลัก (AI Core Engine)</label>
+                            <select class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none bg-white">
+                                <option>Gemini 2.0 Flash (ผ่าน Google Apps Script — ตรวจให้คะแนนและคอมเมนต์จริง)</option>
+                            </select>
+                            <p class="text-[9px] text-slate-400 mt-1.5">โมเดลและพรอมต์การตรวจถูกกำหนดไว้ในฟังก์ชัน callGeminiForGrading ภายในไฟล์ Code.gs สามารถแก้ไขได้ตามต้องการ</p>
+                        </div>
+                        <div class="border-t border-slate-100 pt-5">
+                            <label class="block text-[10px] font-black text-slate-700 uppercase mb-3 tracking-wider">ระดับความเข้มงวดในการตรวจคุณภาพโค้ด</label>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <button class="p-3 border rounded-xl text-center text-xs font-bold border-slate-200 hover:border-teal-500 transition-colors bg-white">โหมดส่งเสริมการพัฒนา (เน้นให้คำแนะแนวทาง)</button>
+                                <button class="p-3 border rounded-xl text-center text-xs font-bold border-teal-500 bg-teal-50/50 text-teal-700 shadow-sm">เกณฑ์มาตรฐานสากล (สากล & สมดุล)</button>
+                                <button class="p-3 border rounded-xl text-center text-xs font-bold border-slate-200 hover:border-teal-500 transition-colors bg-white">เกณฑ์วิศวกรซอฟต์แวร์ระดับองค์กร (เน้น Security)</button>
+                            </div>
+                        </div>
+                        <div class="border-t border-slate-100 pt-5 flex justify-end gap-3">
+                            <button onclick="testGASConnection()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs px-4 py-2.5 rounded-xl transition-all">ทดสอบเชื่อมต่อฐานข้อมูล</button>
+                            <button onclick="saveDeploymentSettings()" class="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all">บันทึกพารามิเตอร์</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL 1: SUBMIT ASSESSMENT MODAL (image_412829.png elements integrated) -->
+    <div id="create-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl border border-slate-200/80 max-w-xl w-full p-6 shadow-2xl relative">
+            <button onclick="closeCreateModal()" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-base md:text-lg font-extrabold text-slate-900 mb-1.5">ส่งชิ้นงานคอมพิวเตอร์/โค้ดพัฒนาโครงสร้างใหม่</h3>
+            <p class="text-xs text-slate-500 mb-5 leading-relaxed">กรอกข้อมูลระบบ และเลือกหมวดหมู่เกณฑ์ประเมินที่ตรงกับประเภทผลงาน เพื่อส่งให้เอ็นจิ้น AI ดำเนินการวิเคราะห์โครงสร้างข้อมูล</p>
+            
+            <form id="create-assessment-form" onsubmit="submitNewAssessment(event)" class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">ชื่อผลงาน / หัวข้อวิทยานิพนธ์วิจัย</label>
+                    <input type="text" id="form-title" required placeholder="เช่น การวิเคราะห์อัลกอริทึมจำแนกความผิดปกติด้วยแนวคิดคอมพิวเตอร์ประสิทธิภาพสูง" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">ชื่อนักศึกษาผู้พัฒนา</label>
+                        <input type="text" id="form-student" required placeholder="เช่น อภิสิทธิ์ วงศ์วิริยะ" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">หมวดหมู่เกณฑ์ประเมิน (RUBRIC) - ตามรูปแบบในรูปภาพ image_412829.png</label>
+                        <select id="form-rubric" class="w-full text-xs border-2 border-teal-500 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:outline-none bg-white font-semibold text-teal-800 shadow-sm cursor-pointer">
+                            <!-- Populated Dynamically with Computer-themed items -->
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">เนื้อหา / คำอธิบายโครงสร้างซอร์สโค้ด / สรุปความต้องการระบบ</label>
+                    <textarea id="form-text" required rows="5" placeholder="วางบทวิเคราะห์ โค้ดของระบบ หรือสรุปความก้าวหน้าโครงงานระบบเทคโนโลยีลงที่นี่..." class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm leading-relaxed"></textarea>
+                </div>
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeCreateModal()" class="px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors">ส่งตรวจประเมินด้วย AI</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: CREATE / EDIT RUBRICS AND MAX SCORE CONFIGURATION -->
+    <div id="rubric-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl border border-slate-200/80 max-w-2xl w-full p-6 shadow-2xl relative flex flex-col max-h-[90vh]">
+            <button onclick="closeRubricModal()" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 id="rubric-modal-title" class="text-base md:text-lg font-extrabold text-slate-900 mb-1.5">จัดการเกณฑ์ประเมินคอมพิวเตอร์และระดับคะแนนเต็ม</h3>
+            <p class="text-xs text-slate-500 mb-4 leading-relaxed">กำหนดรหัสวิชา หมวดหมู่หลัก และเพิ่มเกณฑ์รายข้อย่อยพร้อมกำหนดคะแนนเต็มเพื่อประเมินความถูกต้องตามมาตรฐานวิชาการ</p>
+            
+            <form id="rubric-form" onsubmit="submitRubricForm(event)" class="space-y-4 overflow-y-auto pr-1 flex-1">
+                <input type="hidden" id="rubric-edit-id" value="">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">รหัสอ้างอิงหมวดหมู่เกณฑ์ (เช่น DB Architecture)</label>
+                        <input type="text" id="rubric-key" required placeholder="เช่น Security, Algorithms" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">ชื่อเกณฑ์และมาตรฐานหลัก</label>
+                        <input type="text" id="rubric-name" required placeholder="เช่น เกณฑ์ประเมินความมั่นคงระบบคลาวด์" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">คำอธิบายโครงสร้างเป้าหมาย</label>
+                    <textarea id="rubric-desc" required rows="2" placeholder="รายละเอียดที่ต้องการตรวจวัด เช่น วิเคราะห์ช่องโหว่ความเสี่ยงระดับ API..." class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm"></textarea>
+                </div>
+
+                <div class="border-t border-slate-100 pt-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <label class="block text-[10px] font-black text-teal-800 uppercase tracking-wider"><i class="fa-solid fa-list-check mr-1.5"></i> รายชื่อเกณฑ์ย่อยและคะแนนเต็ม</label>
+                        <button type="button" onclick="addCriteriaRow()" class="text-teal-600 hover:text-teal-700 text-xs font-bold flex items-center gap-1">
+                            <i class="fa-solid fa-circle-plus"></i> เพิ่มเกณฑ์ย่อย
+                        </button>
+                    </div>
+
+                    <!-- Dynamic Criteria Rows Container -->
+                    <div id="modal-criteria-container" class="space-y-3">
+                        <!-- Dynamic criteria inputs go here -->
+                    </div>
+
+                    <!-- Live Total Score Counter -->
+                    <div class="mt-4 bg-teal-50 border border-teal-100/60 rounded-xl p-3 flex justify-between items-center text-xs font-semibold">
+                        <span class="text-teal-950">ผลรวมคะแนนเต็มเกณฑ์นี้ทั้งหมด:</span>
+                        <span id="modal-computed-total-score" class="font-black text-teal-700 text-sm">0 คะแนน</span>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 sticky bottom-0 bg-white">
+                    <button type="button" onclick="closeRubricModal()" class="px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-teal-600/15">บันทึกข้อมูลเกณฑ์</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- AI HIGHLIGHT DETAILED TOOLTIP POPOVER -->
+    <div id="highlight-popover" class="hidden absolute z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 max-w-xs transition-all duration-200 text-xs">
+        <div class="flex items-start gap-2.5 mb-2.5">
+            <span class="bg-teal-50 text-teal-600 p-2 rounded-xl flex-shrink-0 flex items-center justify-center shadow-inner">
+                <i class="fa-solid fa-bug-slash text-xs"></i>
+            </span>
+            <div>
+                <span class="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest block">คำแนะนำข้อสังเกตจาก AI</span>
+                <p id="popover-text" class="font-medium text-slate-800 leading-relaxed mt-0.5"></p>
+            </div>
+        </div>
+        <div class="mt-3.5 flex justify-end gap-2 border-t border-slate-100 pt-2.5">
+            <button onclick="closePopover()" class="px-2.5 py-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-800 rounded-lg">ปิด</button>
+            <button onclick="applyPopoverSuggestion()" class="px-3 py-1.5 text-[10px] font-bold bg-teal-600 hover:bg-teal-700 text-white rounded-lg shadow-sm">ยอมรับเพื่อ Refactor โค้ด</button>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================
+           GOOGLE APPS SCRIPT API CLIENT (REAL DATABASE)
+           =========================================
+           ฐานข้อมูลจริงทั้งหมด (เกณฑ์รูบิก + ผลการประเมิน) ถูกเก็บไว้ใน
+           Google Sheets และเข้าถึงผ่าน Google Apps Script Web App
+           ดูวิธีติดตั้งฉบับเต็มได้ในไฟล์ SETUP.md / Code.gs
+        */
+        const GASClient = {
+            getUrl() {
+                return localStorage.getItem('gradeai_gas_url') || '';
+            },
+            async get(action) {
+                const url = this.getUrl();
+                if (!url) throw new Error('NO_URL');
+                const res = await fetch(`${url}?action=${encodeURIComponent(action)}`, { method: 'GET' });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'GAS GET error');
+                return data.data;
+            },
+            async post(action, payload) {
+                const url = this.getUrl();
+                if (!url) throw new Error('NO_URL');
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, payload })
+                });
+                const data = await res.json();
+                if (data.status !== 'success') throw new Error(data.message || 'GAS POST error');
+                return data.data;
+            }
+        };
+
+        /* Live Application State (populated entirely from Google Sheets via GAS) */
+        let rubricsData = [];
+        let assessments = [];
+        let currentAssessmentId = null;
+
+        /* Page Onload Setup — boots the real database connection */
+        window.onload = function() {
+            loadDeploymentSettings();
+            initApp();
+        };
+
+        async function initApp() {
+            const gasUrl = GASClient.getUrl();
+
+            if (!gasUrl) {
+                document.getElementById('loading-overlay').classList.add('hidden');
+                document.getElementById('setup-required-overlay').classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const data = await GASClient.get('getall');
+                rubricsData = data.rubrics || [];
+                assessments = data.assessments || [];
+                currentAssessmentId = assessments.length > 0 ? assessments[0].id : null;
+
+                renderAssessmentsTable();
+                renderRubricsGrid();
+                populateRubricsDropdowns();
+                switchSidebarTab('dashboard');
+                updateCloudIndicator();
+
+                document.getElementById('loading-overlay').classList.add('hidden');
+                document.getElementById('setup-required-overlay').classList.add('hidden');
+
+                if (window.MathJax) {
+                    MathJax.typesetPromise();
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading-overlay').classList.add('hidden');
+                document.getElementById('setup-required-overlay').classList.remove('hidden');
+                triggerToast('เชื่อมต่อฐานข้อมูล Google Sheets ไม่สำเร็จ: ' + err.message, 'error');
+            }
+        }
+
+        /* Used by the setup-required overlay on first run */
+        function saveInitialGasUrl() {
+            const url = document.getElementById('setup-gas-url-input').value.trim();
+            if (!url) {
+                triggerToast('กรุณาระบุ Google Apps Script Web App URL', 'error');
+                return;
+            }
+            localStorage.setItem('gradeai_gas_url', url);
+            document.getElementById('settings-gas-url').value = url;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('setup-required-overlay').classList.add('hidden');
+            initApp();
+        }
+
+        /* Reload all data fresh from Google Sheets (used after create/update/delete) */
+        async function refreshAllData() {
+            const data = await GASClient.get('getall');
+            rubricsData = data.rubrics || [];
+            assessments = data.assessments || [];
+        }
+
+        /* Render Recent Submissions Table */
+        /* Compute and render real-time dashboard statistics from live assessment data */
+        function renderDashboardStats() {
+            const graded = assessments.filter(a => a.status === 'Graded' || a.status === 'Failed');
+            const avgEl = document.getElementById('stat-avg-score');
+            const countEl = document.getElementById('stat-graded-count');
+            const passEl = document.getElementById('stat-pass-rate');
+            if (!avgEl || !countEl || !passEl) return;
+
+            if (graded.length === 0) {
+                avgEl.textContent = '–';
+                countEl.textContent = '0 ชิ้นงาน';
+                passEl.textContent = '–';
+                return;
+            }
+
+            let totalPercent = 0;
+            let passedCount = 0;
+
+            graded.forEach(item => {
+                const rubric = rubricsData.find(r => r.key === item.rubricKey);
+                const maxTotal = rubric ? rubric.criteria.reduce((s, c) => s + c.max, 0) : 100;
+                const pct = maxTotal > 0 ? (item.score / maxTotal) * 100 : 0;
+                totalPercent += pct;
+                if (item.status === 'Graded') passedCount++;
+            });
+
+            avgEl.textContent = (totalPercent / graded.length).toFixed(1) + '%';
+            countEl.textContent = `${graded.length} ชิ้นงาน`;
+            passEl.textContent = Math.round((passedCount / graded.length) * 100) + '%';
+        }
+
+        function renderAssessmentsTable() {
+            const tbody = document.getElementById('assessments-table-body');
+            tbody.innerHTML = '';
+            renderDashboardStats();
+
+            if (assessments.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-12 text-center text-slate-400">
+                            <i class="fa-solid fa-inbox text-2xl mb-2.5 block"></i>
+                            <p class="text-xs font-semibold">ยังไม่มีผลการประเมินในฐานข้อมูล ลองส่งชิ้นงานใหม่เพื่อให้ AI ตรวจประเมิน</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            assessments.forEach(item => {
+                let statusBadge = '';
+                let scoreText = '';
+                
+                const rubric = rubricsData.find(r => r.key === item.rubricKey);
+                const maxTotal = rubric ? rubric.criteria.reduce((sum, c) => sum + c.max, 0) : 100;
+
+                if (item.status === 'Graded') {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/50 shadow-xs"><i class="fa-solid fa-circle-check text-[8px]"></i> ตรวจสอบแล้ว</span>`;
+                    scoreText = `<span class="font-extrabold text-slate-800 text-sm">${item.score}</span><span class="text-[10px] text-slate-400 font-bold">/${maxTotal}</span>`;
+                } else if (item.status === 'In Progress') {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/50 shadow-xs"><i class="fa-solid fa-spinner animate-spin text-[8px]"></i> กำลังคอมไพล์</span>`;
+                    scoreText = `<span class="text-[10px] text-slate-400 font-bold">กำลังประมวลผล...</span>`;
+                } else {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200/50 shadow-xs"><i class="fa-solid fa-triangle-exclamation text-[8px]"></i> ตกเกณฑ์ประเมิน</span>`;
+                    scoreText = `<span class="font-extrabold text-rose-600 text-sm">${item.score}</span><span class="text-[10px] text-slate-400 font-bold">/${maxTotal}</span>`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-slate-50 transition-colors cursor-pointer ${item.id === currentAssessmentId ? 'bg-teal-50/40' : ''}`;
+                tr.onclick = (e) => {
+                    if (e.target.closest('button')) return;
+                    selectAssessment(item.id);
+                };
+
+                tr.innerHTML = `
+                    <td class="py-4 px-6">
+                        <div class="font-bold text-slate-800 hover:text-teal-700 transition-colors text-xs md:text-sm line-clamp-1">${item.title}</div>
+                    </td>
+                    <td class="py-4 px-6 text-[11px] text-slate-400 font-bold">${formatDate(item.date)}</td>
+                    <td class="py-4 px-6 font-bold text-slate-700">${item.student}</td>
+                    <td class="py-4 px-6 text-center">
+                        <div class="flex flex-col items-center gap-1">
+                            ${statusBadge}
+                            <div class="mt-0.5">${scoreText}</div>
+                        </div>
+                    </td>
+                    <td class="py-4 px-6 text-right">
+                        <button onclick="selectAssessment('${item.id}')" class="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-teal-600 hover:bg-teal-50 hover:border-teal-300 shadow-sm transition-all flex items-center gap-1 ml-auto">
+                            วิเคราะห์สถาปัตย์ <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        /* Filter lists via search query input */
+        function filterAssessments() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const rows = document.getElementById('assessments-table-body').getElementsByTagName('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const text = rows[i].textContent.toLowerCase();
+                rows[i].style.display = text.includes(query) ? '' : 'none';
+            }
+        }
+
+        /* Dynamic view switcher tab routing logic */
+        function switchSidebarTab(tabName) {
+            document.querySelectorAll('.sidebar-tab').forEach(btn => {
+                btn.classList.remove('bg-teal-900/40', 'text-white', 'shadow-md', 'border', 'border-teal-800/30');
+                btn.classList.add('text-slate-400', 'hover:bg-slate-900', 'hover:text-white');
+            });
+
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-evaluation').classList.add('hidden');
+            document.getElementById('view-rubrics').classList.add('hidden');
+            document.getElementById('view-settings').classList.add('hidden');
+
+            document.getElementById('breadcrumb-arrow').classList.add('hidden');
+            document.getElementById('breadcrumb-student').classList.add('hidden');
+
+            if (tabName === 'dashboard') {
+                document.getElementById('nav-dashboard').classList.add('bg-teal-900/40', 'text-white', 'shadow-md', 'border', 'border-teal-800/30');
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                document.getElementById('main-view-title').textContent = 'แดชบอร์ดผู้สอน';
+            } else if (tabName === 'rubrics') {
+                document.getElementById('nav-rubrics').classList.add('bg-teal-900/40', 'text-white', 'shadow-md', 'border', 'border-teal-800/30');
+                document.getElementById('view-rubrics').classList.remove('hidden');
+                document.getElementById('main-view-title').textContent = 'คลังเกณฑ์รูบิก';
+                renderRubricsGrid();
+            } else if (tabName === 'settings') {
+                document.getElementById('nav-settings').classList.add('bg-teal-900/40', 'text-white', 'shadow-md', 'border', 'border-teal-800/30');
+                document.getElementById('view-settings').classList.remove('hidden');
+                document.getElementById('main-view-title').textContent = 'ตั้งค่าระบบประเมิน';
+            }
+        }
+
+        function goBackToDashboard() {
+            switchSidebarTab('dashboard');
+            renderAssessmentsTable();
+        }
+
+        /* Render Rubrics Grid layout cards */
+        function renderRubricsGrid() {
+            const container = document.getElementById('rubrics-grid-container');
+            container.innerHTML = '';
+
+            rubricsData.forEach(rubric => {
+                const totalScore = rubric.criteria.reduce((sum, item) => sum + item.max, 0);
+                const activeBadge = rubric.isActive 
+                    ? `<span class="font-extrabold text-teal-600 bg-teal-50 px-2 py-1 rounded-lg text-[9px] border border-teal-100">เปิดใช้งาน</span>` 
+                    : `<span class="text-slate-400 bg-slate-100 px-2 py-1 rounded-lg text-[9px]">ปิดใช้งาน</span>`;
+
+                const card = document.createElement('div');
+                card.className = "border border-slate-200 rounded-2xl p-5 bg-white hover:border-teal-500 hover:shadow-premium transition-all flex flex-col justify-between";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-[9px] bg-teal-50 text-teal-800 font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">${rubric.key}</span>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="openRubricModal('${rubric.key}')" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-teal-600 transition-colors" title="แก้ไข">
+                                    <i class="fa-solid fa-pen-to-square text-xs"></i>
+                                </button>
+                                <button onclick="deleteRubric('${rubric.key}')" class="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors" title="ลบ">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <h4 class="font-extrabold text-slate-800 text-sm line-clamp-1">${rubric.name}</h4>
+                        <p class="text-xs text-slate-500 mt-2 line-clamp-3 leading-relaxed">${rubric.desc}</p>
+                    </div>
+                    
+                    <div class="mt-5 flex justify-between items-center border-t border-slate-100 pt-4 text-xs text-slate-500">
+                        <span class="font-bold text-slate-600">${rubric.criteria.length} คุณลักษณะ (<span class="text-teal-600 font-extrabold">${totalScore} คะแนน</span>)</span>
+                        ${activeBadge}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            // "Create Rubric" Tile Link inside card loop
+            const addTile = document.createElement('div');
+            addTile.className = "border-2 border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-teal-500 hover:bg-teal-50/10 transition-colors min-h-[170px]";
+            addTile.onclick = () => openRubricModal();
+            addTile.innerHTML = `
+                <i class="fa-solid fa-circle-plus text-slate-400 text-2xl mb-2.5"></i>
+                <span class="font-extrabold text-xs text-slate-700">เพิ่มเกณฑ์ประเมินประเภทอื่น</span>
+                <p class="text-[10px] text-slate-400 max-w-[200px] mt-1.5 leading-relaxed">สามารถตั้งชื่อเกณฑ์คอมพิวเตอร์และคะแนนตามที่หลักสูตรกำหนด</p>
+            `;
+            container.appendChild(addTile);
+        }
+
+        /* Dynamically synchronized dropdown */
+        function populateRubricsDropdowns() {
+            const dropdown = document.getElementById('form-rubric');
+            if (!dropdown) return;
+            dropdown.innerHTML = '';
+
+            rubricsData.forEach(rubric => {
+                const totalScore = rubric.criteria.reduce((sum, item) => sum + item.max, 0);
+                const opt = document.createElement('option');
+                opt.value = rubric.key;
+                opt.textContent = `${rubric.name} (เต็ม ${totalScore} คะแนน)`;
+                dropdown.appendChild(opt);
+            });
+        }
+
+        /* Select / Activate specific assessment detailed split-screen */
+        function selectAssessment(id) {
+            const item = assessments.find(a => a.id === id);
+            if (!item) return;
+
+            currentAssessmentId = id;
+            
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-rubrics').classList.add('hidden');
+            document.getElementById('view-settings').classList.add('hidden');
+            document.getElementById('view-evaluation').classList.remove('hidden');
+
+            document.getElementById('main-view-title').textContent = 'ผลการประเมินโครงสร้างโดยละเอียด';
+            document.getElementById('breadcrumb-arrow').classList.remove('hidden');
+            document.getElementById('breadcrumb-student').classList.remove('hidden');
+            document.getElementById('breadcrumb-student').textContent = `ผู้ส่ง: ${item.student}`;
+
+            document.getElementById('eval-doc-title').textContent = item.title;
+            document.getElementById('eval-student-name').textContent = item.student;
+            document.getElementById('eval-essay-text').innerHTML = item.essayText;
+
+            renderEvaluationMetrics(item);
+            
+            // Re-render LaTeX symbols on content load
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        /* Generate evaluation layout right panel breakdown details */
+        function renderEvaluationMetrics(item) {
+            const gaugeScoreText = document.getElementById('gauge-score-text');
+            const progressCircle = document.getElementById('gauge-progress');
+
+            const rubric = rubricsData.find(r => r.key === item.rubricKey);
+            if (!rubric) {
+                document.getElementById('criteria-accordion-container').innerHTML = `
+                    <div class="text-center py-12 text-slate-400">
+                        <i class="fa-solid fa-triangle-exclamation text-3xl mb-3 block text-rose-500"></i>
+                        <p class="text-xs font-semibold">ไม่พบข้อมูลเกณฑ์ที่กำหนดไว้สำหรับโครงงานนี้</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const maxTotalScore = rubric.criteria.reduce((sum, c) => sum + c.max, 0);
+
+            if (item.status === 'In Progress') {
+                gaugeScoreText.innerHTML = `<span class="text-[11px] font-bold text-teal-600 tracking-wider">กำลังคอมไพล์</span>`;
+                progressCircle.style.strokeDashoffset = '263.89'; // full perimeter resets
+                document.getElementById('criteria-accordion-container').innerHTML = `
+                    <div class="text-center py-12 text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        <i class="fa-solid fa-clock-rotate-left text-3xl mb-3 block text-teal-500/80 animate-pulse"></i>
+                        <p class="text-xs font-bold text-slate-700">กำลังสแกนซอร์สโค้ดและวัดประสิทธิภาพความเร็วของลูป...</p>
+                        <p class="text-[10px] mt-1 text-slate-400">ขั้นตอนนี้ใช้เวลาประมวลผลประมาณ 15-30 วินาที</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const score = item.score;
+            gaugeScoreText.innerHTML = `${score}<span class="text-xs text-slate-400 font-bold">/${maxTotalScore}</span>`;
+            
+            // Circle perimeter calculations = 2 * PI * r = 2 * 3.14159 * 42 = 263.89
+            const perimeter = 263.89;
+            const percentageValue = Math.min(100, Math.max(0, (score / maxTotalScore) * 100));
+            const targetOffset = perimeter - (perimeter * (percentageValue / 100));
+            
+            progressCircle.style.setProperty('--target-offset', targetOffset);
+            progressCircle.style.strokeDashoffset = targetOffset;
+
+            // Gauge coloration logic
+            if (percentageValue < 60) {
+                progressCircle.setAttribute('stroke', '#ef4444'); 
+            } else if (percentageValue < 80) {
+                progressCircle.setAttribute('stroke', '#f59e0b'); 
+            } else {
+                progressCircle.setAttribute('stroke', '#0d9488'); 
+            }
+
+            const container = document.getElementById('criteria-accordion-container');
+            container.innerHTML = '';
+
+            rubric.criteria.forEach((criterion, idx) => {
+                const itemScore = (item.criteriaScores && item.criteriaScores[idx] !== undefined) 
+                    ? item.criteriaScores[idx] 
+                    : Math.round(criterion.max * 0.8);
+
+                const percentage = (itemScore / criterion.max) * 100;
+                let barColor = 'bg-teal-600';
+                if (percentage < 60) barColor = 'bg-rose-500';
+                else if (percentage < 80) barColor = 'bg-amber-500';
+
+                const sectionId = `accordion-${idx}`;
+                const div = document.createElement('div');
+                div.className = "border border-slate-200/80 rounded-xl overflow-hidden shadow-xs bg-white transition-all";
+                div.innerHTML = `
+                    <button onclick="toggleAccordion('${sectionId}')" class="w-full flex items-center justify-between p-4 text-left font-bold text-slate-800 text-xs bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                        <div class="flex-1 mr-4">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <span class="font-bold text-slate-800 text-[11px]">${criterion.name}</span>
+                                <span class="font-extrabold text-slate-800">${itemScore}<span class="text-slate-400 font-bold">/${criterion.max}</span></span>
+                            </div>
+                            <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                <div class="${barColor} h-full transition-all duration-1000" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                        <i id="icon-${sectionId}" class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-200"></i>
+                    </button>
+                    <div id="content-${sectionId}" class="hidden p-4 border-t border-slate-100 bg-white space-y-3.5 text-xs leading-relaxed text-slate-600">
+                        <div class="space-y-1">
+                            <span class="font-black text-slate-700 uppercase tracking-wider text-[9px] block">ข้อสังเกตและแนวคิดการสแกนเชิงลึก:</span>
+                            <p class="text-slate-600 font-medium">${criterion.comment}</p>
+                        </div>
+                        <div class="bg-teal-50/50 border border-teal-100 p-3.5 rounded-xl flex items-start gap-2.5 text-slate-700">
+                            <i class="fa-regular fa-lightbulb text-teal-600 mt-0.5 text-sm flex-shrink-0"></i>
+                            <div>
+                                <span class="font-black text-teal-900 text-[9px] uppercase tracking-wider block">แนวทางปรับปรุงและ Refactor (AI Suggestion)</span>
+                                <p class="text-[11px] text-teal-950 mt-1 font-medium">${criterion.tips}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            // Automatically expand first criterion index
+            if (rubric.criteria.length > 0) {
+                toggleAccordion('accordion-0');
+            }
+        }
+
+        function toggleAccordion(id) {
+            const content = document.getElementById(`content-${id}`);
+            const icon = document.getElementById(`icon-${id}`);
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                content.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+
+        let activeSelectionPhrase = '';
+        function showHighlightPopover(e, phrase) {
+            e.stopPropagation();
+            
+            const popover = document.getElementById('highlight-popover');
+            const popoverText = document.getElementById('popover-text');
+            
+            const item = assessments.find(a => a.id === currentAssessmentId);
+            const feedback = item ? item.feedbackMap[phrase] : 'ไม่มีข้อมูลข้อเสนอบั๊กของ AI ในส่วนของบรรทัดนี้';
+
+            activeSelectionPhrase = phrase;
+            popoverText.textContent = feedback;
+
+            popover.classList.remove('hidden');
+            const rect = e.target.getBoundingClientRect();
+            
+            // Positioning coordinates smoothly near interaction highlight targets
+            popover.style.top = `${rect.bottom + window.scrollY + 8}px`;
+            popover.style.left = `${Math.min(window.innerWidth - 300, Math.max(16, rect.left + window.scrollX - 40))}px`;
+        }
+
+        function closePopover() {
+            document.getElementById('highlight-popover').classList.add('hidden');
+        }
+
+        function applyPopoverSuggestion() {
+            closePopover();
+            triggerToast('ปรับปรุงโครงสร้างสถาปัตยกรรมความซับซ้อนตามข้อเสนอแนะ AI เสร็จสิ้น', 'success');
+        }
+
+        /* Globals hide elements handlers */
+        document.addEventListener('click', function(e) {
+            const popover = document.getElementById('highlight-popover');
+            if (popover && !popover.contains(e.target)) {
+                closePopover();
+            }
+        });
+
+        function openCreateModal() {
+            populateRubricsDropdowns();
+            document.getElementById('create-modal').classList.remove('hidden');
+        }
+
+        function closeCreateModal() {
+            document.getElementById('create-modal').classList.add('hidden');
+            document.getElementById('create-assessment-form').reset();
+        }
+
+        /* Open Rubric Creator Dialog form */
+        function openRubricModal(key = '') {
+            const modal = document.getElementById('rubric-modal');
+            const titleEl = document.getElementById('rubric-modal-title');
+            const editIdEl = document.getElementById('rubric-edit-id');
+            const keyInput = document.getElementById('rubric-key');
+            const nameInput = document.getElementById('rubric-name');
+            const descInput = document.getElementById('rubric-desc');
+            const criteriaContainer = document.getElementById('modal-criteria-container');
+
+            criteriaContainer.innerHTML = '';
+            
+            if (key) {
+                const rubric = rubricsData.find(r => r.key === key);
+                titleEl.textContent = "แก้ไขเกณฑ์ประเมินประเภทคอมพิวเตอร์";
+                editIdEl.value = key;
+                keyInput.value = rubric.key;
+                keyInput.disabled = true; // locks key
+                nameInput.value = rubric.name;
+                descInput.value = rubric.desc;
+
+                rubric.criteria.forEach(crit => {
+                    addCriteriaRow(crit.name, crit.max);
+                });
+            } else {
+                titleEl.textContent = "สร้างเกณฑ์การให้คะแนนคอมพิวเตอร์ใหม่";
+                editIdEl.value = '';
+                keyInput.value = '';
+                keyInput.disabled = false;
+                nameInput.value = '';
+                descInput.value = '';
+
+                addCriteriaRow('ความสมบูรณ์และถูกต้องของอัลกอริทึม', 30);
+                addCriteriaRow('มาตรฐานสถาปัตยกรรมและการเลือกใช้โครงสร้างข้อมูล', 20);
+            }
+
+            calculateModalTotalScore();
+            modal.classList.remove('hidden');
+        }
+
+        function closeRubricModal() {
+            document.getElementById('rubric-modal').classList.add('hidden');
+            document.getElementById('rubric-form').reset();
+        }
+
+        /* Add detailed metric parameters input row */
+        function addCriteriaRow(name = '', maxScore = 10) {
+            const container = document.getElementById('modal-criteria-container');
+            const rowId = `criteria-row-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+            const row = document.createElement('div');
+            row.id = rowId;
+            row.className = "flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100";
+            row.innerHTML = `
+                <input type="text" placeholder="ระบุรายข้อย่อย เช่น ความครอบคลุมกรณีทดสอบ" value="${name}" required class="flex-1 text-xs border border-slate-200 rounded-lg p-2.5 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white font-medium">
+                <div class="flex items-center gap-1.5 w-28 flex-shrink-0">
+                    <span class="text-[9px] text-slate-400 font-extrabold uppercase">เต็ม</span>
+                    <input type="number" min="1" max="100" value="${maxScore}" oninput="calculateModalTotalScore()" required class="w-16 text-xs border border-slate-200 rounded-lg p-2 text-center font-bold focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white">
+                </div>
+                <button type="button" onclick="removeCriteriaRow('${rowId}')" class="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition-colors" title="ลบรายข้อ">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                </button>
+            `;
+            container.appendChild(row);
+            calculateModalTotalScore();
+        }
+
+        function removeCriteriaRow(rowId) {
+            const row = document.getElementById(rowId);
+            if (row) {
+                row.remove();
+                calculateModalTotalScore();
+            }
+        }
+
+        /* Calculate scores configuration cumulative summary count */
+        function calculateModalTotalScore() {
+            const container = document.getElementById('modal-criteria-container');
+            const numberInputs = container.querySelectorAll('input[type="number"]');
+            let total = 0;
+            numberInputs.forEach(input => {
+                total += parseInt(input.value || 0, 10);
+            });
+            document.getElementById('modal-computed-total-score').textContent = `${total} คะแนน`;
+        }
+
+        /* Save configured settings profile logic */
+        async function submitRubricForm(e) {
+            e.preventDefault();
+
+            const editKey = document.getElementById('rubric-edit-id').value;
+            const key = document.getElementById('rubric-key').value.trim();
+            const name = document.getElementById('rubric-name').value.trim();
+            const desc = document.getElementById('rubric-desc').value.trim();
+
+            const container = document.getElementById('modal-criteria-container');
+            const rows = container.children;
+            const criteriaList = [];
+
+            if (rows.length === 0) {
+                triggerToast('กรุณาระบุเกณฑ์รายย่อยอย่างน้อย 1 เกณฑ์ข้อกำหนดก่อนจัดเก็บ', 'error');
+                return;
+            }
+
+            for (let i = 0; i < rows.length; i++) {
+                const inputs = rows[i].querySelectorAll('input');
+                const nameVal = inputs[0].value.trim();
+                const maxVal = parseInt(inputs[1].value || 0, 10);
+
+                criteriaList.push({
+                    name: nameVal,
+                    max: maxVal,
+                    comment: '',
+                    tips: ''
+                });
+            }
+
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'กำลังบันทึกลงฐานข้อมูล...'; }
+
+            try {
+                if (editKey) {
+                    await GASClient.post('updateRubric', { key: editKey, name, desc, criteria: criteriaList });
+                    triggerToast(`ปรับปรุงแก้ไขเกณฑ์ "${name}" ลงฐานข้อมูล Sheets เสร็จเรียบร้อยแล้ว`, 'success');
+                } else {
+                    if (rubricsData.some(r => r.key.toLowerCase() === key.toLowerCase())) {
+                        triggerToast(`รหัสซ้ำหมวดหมู่ "${key}" ถูกใช้งานแล้วในระบบ กรุณาใช้รหัสอ้างอิงอื่น`, 'error');
+                        return;
+                    }
+                    await GASClient.post('createRubric', { key, name, desc, criteria: criteriaList });
+                    triggerToast(`สร้างและบันทึกหมวดหมู่ "${name}" ลงฐานข้อมูล Sheets สำเร็จ`, 'success');
+                }
+
+                await refreshAllData();
+                closeRubricModal();
+                renderRubricsGrid();
+                populateRubricsDropdowns();
+            } catch (err) {
+                console.error(err);
+                triggerToast('บันทึกเกณฑ์ไม่สำเร็จ: ' + err.message, 'error');
+            } finally {
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'บันทึกข้อมูลเกณฑ์'; }
+            }
+        }
+
+        /* Delete configured criteria index safe triggers checks */
+        async function deleteRubric(key) {
+            const inUse = assessments.some(a => a.rubricKey === key);
+            if (inUse) {
+                triggerToast(`ไม่สามารถดำเนินการลบได้ เนื่องจากมีประวัตินักเรียนทำระบบประเมินโดยอิงจากเกณฑ์ "${key}" นี้อยู่`, 'error');
+                return;
+            }
+
+            if (rubricsData.length <= 1) {
+                triggerToast('ต้องรักษาระบบเกณฑ์ประเมินขั้นต่ำไว้อย่างน้อย 1 รูปแบบ เพื่อความปลอดภัยของระบบประเมินผล', 'error');
+                return;
+            }
+
+            try {
+                await GASClient.post('deleteRubric', { key });
+                await refreshAllData();
+                triggerToast('ลบรายการเกณฑ์ประเมินออกจากฐานข้อมูล Sheets เสร็จเรียบร้อย', 'success');
+                renderRubricsGrid();
+                populateRubricsDropdowns();
+            } catch (err) {
+                console.error(err);
+                triggerToast('ลบเกณฑ์ไม่สำเร็จ: ' + err.message, 'error');
+            }
+        }
+
+        /* Process submittal parameters profiles details into local storage lists */
+        async function submitNewAssessment(e) {
+            e.preventDefault();
+
+            const title = document.getElementById('form-title').value;
+            const studentName = document.getElementById('form-student').value;
+            const essayText = document.getElementById('form-text').value;
+            const rubricKey = document.getElementById('form-rubric').value;
+
+            const rubric = rubricsData.find(r => r.key === rubricKey);
+            if (!rubric) {
+                triggerToast('ไม่พบประเภทหลักสูตรรูบิกที่เลือกประมวลผล', 'error');
+                return;
+            }
+
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'AI กำลังตรวจประเมิน...'; }
+
+            closeCreateModal();
+            triggerToast('ส่งเข้าสู่กระบวนการตรวจประเมินด้วย AI (Gemini)... อาจใช้เวลา 10-30 วินาที', 'info');
+
+            try {
+                // gradeWithAI calls Gemini on the server side and writes the result straight to Google Sheets
+                await GASClient.post('gradeWithAI', {
+                    title: title,
+                    student: studentName,
+                    essayText: essayText,
+                    rubricKey: rubricKey
+                });
+
+                await refreshAllData();
+                renderAssessmentsTable();
+
+                // The newest assessment (by date, freshest first) is the one just graded
+                const newest = assessments[0];
+                triggerToast('AI ตรวจประเมินและบันทึกคะแนนลงฐานข้อมูล Sheets เสร็จสิ้นแล้ว!', 'success');
+                if (newest) selectAssessment(newest.id);
+            } catch (err) {
+                console.error(err);
+                triggerToast('การตรวจประเมินด้วย AI ล้มเหลว: ' + err.message, 'error');
+            } finally {
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'ส่งตรวจประเมินด้วย AI'; }
+            }
+        }
+
+        /* =========================================
+           GOOGLE SHEETS DATABASE CONNECTION (REAL BACKEND)
+           =========================================
+        */
+
+        // Save the Apps Script Web App URL — this IS the database connection, not just a "sync"
+        function saveDeploymentSettings() {
+            const gasUrl = document.getElementById('settings-gas-url').value.trim();
+            localStorage.setItem('gradeai_gas_url', gasUrl);
+
+            triggerToast('บันทึก URL ฐานข้อมูลเรียบร้อยแล้ว กำลังโหลดข้อมูลใหม่...', 'success');
+            updateCloudIndicator();
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            initApp();
+        }
+
+        // Load saved GAS URL from LocalStorage into the settings field
+        function loadDeploymentSettings() {
+            const gasUrl = localStorage.getItem('gradeai_gas_url') || '';
+            const urlInput = document.getElementById('settings-gas-url');
+            if (urlInput) urlInput.value = gasUrl;
+        }
+
+        // Live connection indicator state switcher
+        function updateCloudIndicator() {
+            const gasUrl = localStorage.getItem('gradeai_gas_url');
+            const indicator = document.getElementById('cloud-sync-status');
+
+            if (gasUrl && gasUrl.startsWith('https://')) {
+                indicator.classList.remove('hidden');
+                indicator.innerHTML = `
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-emerald-800">เชื่อมต่อฐานข้อมูล Google Sheets แล้ว</span>
+                `;
+                indicator.className = "sm:flex items-center gap-1.5 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/50 px-2.5 py-1 rounded-xl";
+            } else {
+                indicator.innerHTML = `
+                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                    <span class="text-rose-800">ยังไม่เชื่อมต่อฐานข้อมูล</span>
+                `;
+                indicator.className = "sm:flex items-center gap-1.5 text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/50 px-2.5 py-1 rounded-xl";
+            }
+        }
+
+        // Test live connection to the Apps Script Web App / Google Sheets database
+        async function testGASConnection() {
+            const gasUrl = document.getElementById('settings-gas-url').value.trim();
+            if (!gasUrl) {
+                triggerToast('โปรดระบุ Google Apps Script Web App URL ก่อนการทดสอบ', 'error');
+                return;
+            }
+
+            triggerToast('กำลังทดสอบการเชื่อมต่อฐานข้อมูล...', 'info');
+
+            try {
+                const res = await fetch(`${gasUrl}?action=ping`, { method: 'GET' });
+                const data = await res.json();
+                if (data && data.status === 'success') {
+                    triggerToast('เชื่อมต่อฐานข้อมูล Google Sheets สำเร็จ! ระบบพร้อมใช้งานจริง', 'success');
+                } else {
+                    triggerToast('การตอบสนองจากฐานข้อมูลไม่สมบูรณ์: ' + (data.message || ''), 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                triggerToast('การเชื่อมต่อล้มเหลว กรุณาตรวจสอบว่า Deploy เป็น Web App และตั้งสิทธิ์ "ทุกคน (Anyone)" แล้ว', 'error');
+            }
+        }
+
+        // Manually re-fetch everything from the live database (rubrics + assessments)
+        async function manualRefreshData() {
+            triggerToast('กำลังโหลดข้อมูลล่าสุดจากฐานข้อมูล Google Sheets...', 'info');
+            try {
+                await refreshAllData();
+                renderAssessmentsTable();
+                renderRubricsGrid();
+                populateRubricsDropdowns();
+                triggerToast('อัปเดตข้อมูลล่าสุดจากฐานข้อมูลเรียบร้อยแล้ว', 'success');
+            } catch (err) {
+                console.error(err);
+                triggerToast('โหลดข้อมูลล่าสุดไม่สำเร็จ: ' + err.message, 'error');
+            }
+        }
+
+        /* Global Slide toast notification feedback card */
+        function triggerToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            toast.className = `flex items-center gap-3 p-4 rounded-xl shadow-2xl border text-xs font-bold pointer-events-auto transition-all duration-300 transform translate-y-3 opacity-0 bg-white border-slate-100`;
+            
+            let icon = '<i class="fa-solid fa-circle-info text-blue-500"></i>';
+            if (type === 'success') {
+                icon = '<i class="fa-solid fa-circle-check text-emerald-500 text-sm"></i>';
+            } else if (type === 'error') {
+                icon = '<i class="fa-solid fa-triangle-exclamation text-rose-500 text-sm"></i>';
+            }
+
+            toast.innerHTML = `
+                ${icon}
+                <div class="flex-1 text-slate-800">${message}</div>
+                <button class="text-slate-400 hover:text-slate-600" onclick="this.parentElement.remove()"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-3', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-10px]');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function toggleNotifications() {
+            document.getElementById('notif-dropdown').classList.toggle('hidden');
+        }
+
+        function formatDate(dateString) {
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            const d = new Date(dateString);
+            return d.toLocaleDateString('th-TH', options);
+        }
+
+        function triggerPrintExport() {
+            window.print();
+        }
+    </script>
+</body>
+</html>
