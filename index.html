@@ -366,6 +366,10 @@
                                 <div>
                                     <h1 id="eval-doc-title" class="text-base md:text-lg font-extrabold text-slate-900 leading-snug">สถาปัตยกรรม Microservices และคิวรีฐานข้อมูลประสิทธิภาพสูง</h1>
                                     <p class="text-xs text-slate-500 mt-1">ผู้ส่งโครงงาน: <span id="eval-student-name" class="font-bold text-slate-700">สุชาดา มาร์ติเนซ</span></p>
+                                    <a id="eval-file-link" href="#" target="_blank" rel="noopener" class="hidden mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1 hover:bg-teal-100 transition-colors">
+                                        <i class="fa-solid fa-paperclip"></i>
+                                        <span id="eval-file-name"></span>
+                                    </a>
                                 </div>
                                 <span class="text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">ID: PROJ-COMP-2026</span>
                             </div>
@@ -517,7 +521,21 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">เนื้อหา / คำอธิบายโครงสร้างซอร์สโค้ด / สรุปความต้องการระบบ</label>
-                    <textarea id="form-text" required rows="5" placeholder="วางบทวิเคราะห์ โค้ดของระบบ หรือสรุปความก้าวหน้าโครงงานระบบเทคโนโลยีลงที่นี่..." class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm leading-relaxed"></textarea>
+                    <textarea id="form-text" rows="5" placeholder="วางบทวิเคราะห์ โค้ดของระบบ หรือสรุปความก้าวหน้าโครงงานระบบเทคโนโลยีลงที่นี่... (ไม่บังคับถ้ามีการแนบไฟล์)" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm leading-relaxed"></textarea>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1.5 tracking-wider">แนบไฟล์ชิ้นงาน (ไม่บังคับ) — รองรับไฟล์ข้อความ/โค้ด, รูปภาพ, และ PDF</label>
+                    <input type="file" id="form-file" accept=".txt,.md,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.hpp,.cs,.go,.rb,.php,.html,.htm,.css,.json,.xml,.sql,.sh,.yaml,.yml,.csv,image/*,application/pdf" onchange="handleFileSelect(event)" class="w-full text-xs border border-slate-200 rounded-xl p-2.5 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm bg-white cursor-pointer">
+                    <div id="file-selected-info" class="hidden mt-2 flex items-center justify-between bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
+                        <span class="text-[11px] font-semibold text-teal-800 flex items-center gap-1.5 truncate">
+                            <i class="fa-solid fa-paperclip"></i>
+                            <span id="file-selected-name" class="truncate"></span>
+                        </span>
+                        <button type="button" onclick="clearSelectedFile()" class="text-teal-500 hover:text-teal-700 flex-shrink-0 ml-2">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1.5">ไฟล์ข้อความ/โค้ดจะถูกอ่านเนื้อหาแล้วต่อกับช่องด้านบน ส่วนรูปภาพและ PDF จะถูกส่งให้ AI วิเคราะห์ภาพโดยตรง — ไฟล์ทั้งหมดจะถูกเก็บสำเนาไว้ใน Google Drive</p>
                 </div>
                 <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
                     <button type="button" onclick="closeCreateModal()" class="px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">ยกเลิก</button>
@@ -956,6 +974,15 @@
             document.getElementById('eval-student-name').textContent = item.student;
             document.getElementById('eval-essay-text').innerHTML = item.essayText;
 
+            const fileLink = document.getElementById('eval-file-link');
+            if (item.fileUrl) {
+                fileLink.href = item.fileUrl;
+                document.getElementById('eval-file-name').textContent = item.fileName || 'ไฟล์ต้นฉบับ';
+                fileLink.classList.remove('hidden');
+            } else {
+                fileLink.classList.add('hidden');
+            }
+
             renderEvaluationMetrics(item);
             
             // Re-render LaTeX symbols on content load
@@ -1143,6 +1170,8 @@
         function closeCreateModal() {
             document.getElementById('create-modal').classList.add('hidden');
             document.getElementById('create-assessment-form').reset();
+            selectedFileData = null;
+            document.getElementById('file-selected-info').classList.add('hidden');
         }
 
         /* Open Rubric Creator Dialog form */
@@ -1338,6 +1367,47 @@
         }
 
         /* Process submittal parameters profiles details into local storage lists */
+        let selectedFileData = null; // { base64, mimeType, name } ของไฟล์ที่เลือกไว้ (ยังไม่ส่ง)
+
+        function handleFileSelect(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) { selectedFileData = null; return; }
+
+            // จำกัดขนาดไฟล์ไม่ให้เกิน 15MB (Apps Script/Gemini inline data รองรับจำกัด ~20MB ต่อ request)
+            const MAX_BYTES = 15 * 1024 * 1024;
+            if (file.size > MAX_BYTES) {
+                triggerToast('ไฟล์มีขนาดใหญ่เกินไป (จำกัดไม่เกิน 15MB)', 'error');
+                e.target.value = '';
+                selectedFileData = null;
+                document.getElementById('file-selected-info').classList.add('hidden');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                // reader.result คือ "data:<mime>;base64,<data>" — ตัดเอาแค่ส่วน base64
+                const base64 = reader.result.split(',')[1];
+                selectedFileData = {
+                    base64: base64,
+                    mimeType: file.type || 'application/octet-stream',
+                    name: file.name
+                };
+                document.getElementById('file-selected-name').textContent = file.name;
+                document.getElementById('file-selected-info').classList.remove('hidden');
+            };
+            reader.onerror = () => {
+                triggerToast('ไม่สามารถอ่านไฟล์ที่เลือกได้', 'error');
+                selectedFileData = null;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearSelectedFile() {
+            selectedFileData = null;
+            document.getElementById('form-file').value = '';
+            document.getElementById('file-selected-info').classList.add('hidden');
+        }
+
         async function submitNewAssessment(e) {
             e.preventDefault();
 
@@ -1352,9 +1422,15 @@
                 return;
             }
 
+            if (!essayText.trim() && !selectedFileData) {
+                triggerToast('กรุณากรอกเนื้อหาชิ้นงาน หรือแนบไฟล์อย่างน้อยหนึ่งอย่าง', 'error');
+                return;
+            }
+
             const submitBtn = e.target.querySelector('button[type="submit"]');
             if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'AI กำลังตรวจประเมิน...'; }
 
+            const fileToSend = selectedFileData; // เก็บสำเนาไว้ก่อนปิด modal (ปิด modal จะรีเซ็ตฟอร์ม)
             closeCreateModal();
             triggerToast('ส่งเข้าสู่กระบวนการตรวจประเมินด้วย AI (Gemini)... อาจใช้เวลา 10-30 วินาที', 'info');
 
@@ -1364,7 +1440,10 @@
                     title: title,
                     student: studentName,
                     essayText: essayText,
-                    rubricKey: rubricKey
+                    rubricKey: rubricKey,
+                    fileData: fileToSend ? fileToSend.base64 : '',
+                    fileMimeType: fileToSend ? fileToSend.mimeType : '',
+                    fileName: fileToSend ? fileToSend.name : ''
                 });
 
                 await refreshAllData();
