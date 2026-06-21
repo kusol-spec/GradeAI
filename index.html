@@ -640,9 +640,12 @@
             async post(action, payload) {
                 const url = this.getUrl();
                 if (!url) throw new Error('NO_URL');
+                // ใช้ text/plain เพื่อให้เบราว์เซอร์ส่งเป็น "simple request"
+                // (ไม่ทำ CORS preflight ด้วย OPTIONS) เพราะ Apps Script Web App
+                // ไม่รองรับ OPTIONS — ฝั่ง Code.gs จะ JSON.parse(e.postData.contents) เองอยู่แล้ว
                 const res = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ action, payload })
                 });
                 const data = await res.json();
