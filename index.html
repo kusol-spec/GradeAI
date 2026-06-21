@@ -188,8 +188,8 @@
             <div class="p-4 border-t border-slate-900 bg-slate-900/30 hidden md:flex items-center gap-3">
                 <img src="https://placehold.co/100x100/0f766e/ffffff?text=CS" alt="User Profile" class="w-10 h-10 rounded-xl border border-teal-600/30 object-cover">
                 <div class="overflow-hidden">
-                    <h4 class="text-xs font-bold text-white truncate leading-tight">ดร. สาริณี เจนกิจ</h4>
-                    <span class="text-[10px] text-teal-400 truncate block mt-0.5 font-medium">วิทยาการคอมพิวเตอร์</span>
+                    <h4 class="text-xs font-bold text-white truncate leading-tight">ว่าที่ร้อยตรีศิวะพล มุสิกุล</h4>
+                    <span class="text-[10px] text-teal-400 truncate block mt-0.5 font-medium">ครูคอมพิวเตอร์สุดหล่อ</span>
                 </div>
             </div>
         </aside>
@@ -250,7 +250,7 @@
                     <!-- Instructor Info Panel -->
                     <div class="flex items-center gap-2.5 pl-3 border-l border-slate-200 hidden sm:flex">
                         <img src="https://placehold.co/100x100/0f766e/ffffff?text=CS" alt="Sarah Mini Profile" class="w-8 h-8 rounded-lg object-cover border border-slate-200">
-                        <span class="text-xs font-bold text-slate-700 hidden lg:inline">ดร. สาริณี</span>
+                        <span class="text-xs font-bold text-slate-700 hidden lg:inline">ว่าที่ร้อยตรีศิวะพล มุสิกุล</span>
                     </div>
                 </div>
             </header>
@@ -555,9 +555,26 @@
                     <textarea id="rubric-desc" required rows="2" placeholder="รายละเอียดที่ต้องการตรวจวัด เช่น วิเคราะห์ช่องโหว่ความเสี่ยงระดับ API..." class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none shadow-sm"></textarea>
                 </div>
 
-                <div class="border-t border-slate-100 pt-5">
+                <!-- Divisor + Formula Preview -->
+                <div class="bg-amber-50 border border-amber-200/80 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div class="flex items-center gap-2 flex-1">
+                        <i class="fa-solid fa-divide text-amber-500 text-sm flex-shrink-0"></i>
+                        <div class="flex-1">
+                            <label class="block text-[9px] font-extrabold text-amber-800 uppercase tracking-wider mb-1">ตัวหารคะแนน (หารผลรวมดิบเพื่อได้คะแนนจริง)</label>
+                            <input type="number" id="rubric-divisor" min="1" max="1000" value="2" oninput="calculateModalTotalScore()" required
+                                class="w-24 text-sm border border-amber-300 rounded-lg p-2 text-center font-black focus:ring-1 focus:ring-amber-500 focus:outline-none bg-white text-amber-900">
+                        </div>
+                    </div>
+                    <div class="bg-white border border-amber-200 rounded-xl px-4 py-2.5 text-center flex-shrink-0">
+                        <div class="text-[9px] text-amber-600 font-extrabold uppercase tracking-wider mb-1">ตัวอย่างสูตร</div>
+                        <div class="text-xs font-bold text-slate-700" id="modal-formula-preview">ผลรวมดิบ ÷ 2</div>
+                        <div class="text-[9px] text-slate-400 mt-0.5" id="modal-formula-example">= คะแนนจริง</div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4">
                     <div class="flex justify-between items-center mb-4">
-                        <label class="block text-[10px] font-black text-teal-800 uppercase tracking-wider"><i class="fa-solid fa-list-check mr-1.5"></i> รายชื่อเกณฑ์ย่อยและคะแนนเต็ม</label>
+                        <label class="block text-[10px] font-black text-teal-800 uppercase tracking-wider"><i class="fa-solid fa-list-check mr-1.5"></i> รายชื่อเกณฑ์ย่อยและคะแนนดิบเต็ม</label>
                         <button type="button" onclick="addCriteriaRow()" class="text-teal-600 hover:text-teal-700 text-xs font-bold flex items-center gap-1">
                             <i class="fa-solid fa-circle-plus"></i> เพิ่มเกณฑ์ย่อย
                         </button>
@@ -568,9 +585,9 @@
                         <!-- Dynamic criteria inputs go here -->
                     </div>
 
-                    <!-- Live Total Score Counter -->
+                    <!-- Live Total Score Summary -->
                     <div class="mt-4 bg-teal-50 border border-teal-100/60 rounded-xl p-3 flex justify-between items-center text-xs font-semibold">
-                        <span class="text-teal-950">ผลรวมคะแนนเต็มเกณฑ์นี้ทั้งหมด:</span>
+                        <span class="text-teal-950">ผลรวมคะแนนดิบเต็ม → คะแนนจริงเต็ม:</span>
                         <span id="modal-computed-total-score" class="font-black text-teal-700 text-sm flex items-center gap-1">0 คะแนน</span>
                     </div>
                 </div>
@@ -759,36 +776,19 @@
 
                 if (item.status === 'Graded') {
                     statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/50 shadow-xs"><i class="fa-solid fa-circle-check text-[8px]"></i> ตรวจสอบแล้ว</span>`;
-                    // Compute real score for this assessment
-                    let totalReal = 0, totalRealMax = 0;
-                    if (rubric) {
-                        rubric.criteria.forEach((c, idx) => {
-                            const rawS = (item.criteriaScores && item.criteriaScores[idx] !== undefined)
-                                ? item.criteriaScores[idx] : Math.round(c.max * 0.8);
-                            const rMax = c.realMax || c.max;
-                            totalReal += c.max > 0 ? (rawS / c.max) * rMax : 0;
-                            totalRealMax += rMax;
-                        });
-                    }
-                    totalReal = parseFloat(totalReal.toFixed(1));
-                    scoreText = `<span class="font-extrabold text-teal-700 text-sm">${totalReal}</span><span class="text-[10px] text-teal-400 font-bold">/${totalRealMax}</span><span class="text-[9px] text-slate-400 ml-1">(ดิบ ${item.score}/${maxTotal})</span>`;
+                    const div = rubric ? rubric.divisor || 2 : 2;
+                    const realScore = parseFloat((item.score / div).toFixed(1));
+                    const realMax   = parseFloat((maxTotal / div).toFixed(1));
+                    scoreText = `<span class="font-extrabold text-teal-700 text-sm">${realScore}</span><span class="text-[10px] text-teal-400 font-bold">/${realMax}</span><span class="text-[9px] text-slate-400 ml-1">(ดิบ ${item.score})</span>`;
                 } else if (item.status === 'In Progress') {
                     statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/50 shadow-xs"><i class="fa-solid fa-spinner animate-spin text-[8px]"></i> กำลังคอมไพล์</span>`;
                     scoreText = `<span class="text-[10px] text-slate-400 font-bold">กำลังประมวลผล...</span>`;
                 } else {
                     statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200/50 shadow-xs"><i class="fa-solid fa-triangle-exclamation text-[8px]"></i> ตกเกณฑ์ประเมิน</span>`;
-                    let totalReal = 0, totalRealMax = 0;
-                    if (rubric) {
-                        rubric.criteria.forEach((c, idx) => {
-                            const rawS = (item.criteriaScores && item.criteriaScores[idx] !== undefined)
-                                ? item.criteriaScores[idx] : Math.round(c.max * 0.8);
-                            const rMax = c.realMax || c.max;
-                            totalReal += c.max > 0 ? (rawS / c.max) * rMax : 0;
-                            totalRealMax += rMax;
-                        });
-                    }
-                    totalReal = parseFloat(totalReal.toFixed(1));
-                    scoreText = `<span class="font-extrabold text-rose-600 text-sm">${totalReal}</span><span class="text-[10px] text-slate-400 font-bold">/${totalRealMax}</span><span class="text-[9px] text-slate-400 ml-1">(ดิบ ${item.score}/${maxTotal})</span>`;
+                    const div = rubric ? rubric.divisor || 2 : 2;
+                    const realScore = parseFloat((item.score / div).toFixed(1));
+                    const realMax   = parseFloat((maxTotal / div).toFixed(1));
+                    scoreText = `<span class="font-extrabold text-rose-600 text-sm">${realScore}</span><span class="text-[10px] text-slate-400 font-bold">/${realMax}</span><span class="text-[9px] text-slate-400 ml-1">(ดิบ ${item.score})</span>`;
                 }
 
                 const tr = document.createElement('tr');
@@ -898,7 +898,7 @@
                     </div>
                     
                     <div class="mt-5 flex justify-between items-center border-t border-slate-100 pt-4 text-xs text-slate-500">
-                        <span class="font-bold text-slate-600">${rubric.criteria.length} คุณลักษณะ (<span class="text-teal-600 font-extrabold">${totalScore} คะแนน</span>)</span>
+                        <span class="font-bold text-slate-600">${rubric.criteria.length} คุณลักษณะ (<span class="text-teal-600 font-extrabold">${totalScore} ดิบ ÷ ${rubric.divisor || 2} = ${parseFloat((totalScore/(rubric.divisor||2)).toFixed(1))} จริง</span>)</span>
                         ${activeBadge}
                     </div>
                 `;
@@ -978,7 +978,8 @@
             }
 
             const maxTotalScore = rubric.criteria.reduce((sum, c) => sum + c.max, 0);
-            const maxRealScore  = rubric.criteria.reduce((sum, c) => sum + (c.realMax || c.max), 0);
+            const divisor = rubric.divisor || 2;
+            const maxRealScore = parseFloat((maxTotalScore / divisor).toFixed(2));
 
             if (item.status === 'In Progress') {
                 gaugeScoreText.innerHTML = `<span class="text-[11px] font-bold text-teal-600 tracking-wider">กำลังคอมไพล์</span>`;
@@ -994,21 +995,19 @@
             }
 
             const score = item.score;
-            // Compute total real score proportionally
-            let totalRealScore = 0;
+            // คะแนนดิบรวม = ผลรวม criteriaScores, คะแนนจริง = ดิบรวม ÷ divisor
+            let totalRawScore = 0;
             rubric.criteria.forEach((c, idx) => {
-                const rawS = (item.criteriaScores && item.criteriaScores[idx] !== undefined)
+                totalRawScore += (item.criteriaScores && item.criteriaScores[idx] !== undefined)
                     ? item.criteriaScores[idx] : Math.round(c.max * 0.8);
-                const rMax = c.realMax || c.max;
-                totalRealScore += c.max > 0 ? (rawS / c.max) * rMax : 0;
             });
-            totalRealScore = parseFloat(totalRealScore.toFixed(2));
+            const totalRealScore = parseFloat((totalRawScore / divisor).toFixed(2));
 
             gaugeScoreText.innerHTML = `
                 <div class="text-center leading-tight">
-                    <div class="text-[11px] text-slate-400 font-bold mb-0.5">ดิบ ${score}<span class="text-slate-300">/${maxTotalScore}</span></div>
+                    <div class="text-[11px] text-slate-400 font-bold mb-0.5">ดิบ ${totalRawScore}<span class="text-slate-300">/${maxTotalScore}</span></div>
                     <div class="text-base font-black text-teal-700">${totalRealScore}<span class="text-xs text-teal-400 font-bold">/${maxRealScore}</span></div>
-                    <div class="text-[9px] text-teal-500 font-bold mt-0.5">คะแนนจริง</div>
+                    <div class="text-[9px] text-teal-500 font-bold mt-0.5">÷ ${divisor} = คะแนนจริง</div>
                 </div>
             `;
             
@@ -1037,12 +1036,8 @@
                     ? item.criteriaScores[idx] 
                     : Math.round(criterion.max * 0.8);
 
-                const rawMax  = criterion.max;
-                const realMax = criterion.realMax || criterion.max;
-                // Convert raw → real proportionally
-                const realScore = rawMax > 0 ? parseFloat(((rawScore / rawMax) * realMax).toFixed(2)) : 0;
-
-                const percentage = (rawScore / rawMax) * 100;
+                const rawMax = criterion.max;
+                const percentage = rawMax > 0 ? (rawScore / rawMax) * 100 : 0;
                 let barColor = 'bg-teal-600';
                 if (percentage < 60) barColor = 'bg-rose-500';
                 else if (percentage < 80) barColor = 'bg-amber-500';
@@ -1055,11 +1050,7 @@
                         <div class="flex-1 mr-4">
                             <div class="flex justify-between items-center mb-1.5">
                                 <span class="font-bold text-slate-800 text-[11px]">${criterion.name}</span>
-                                <div class="flex items-center gap-2 text-right">
-                                    <span class="text-[10px] text-slate-400 font-semibold" title="คะแนนดิบ">ดิบ <span class="font-extrabold text-slate-600">${rawScore}</span><span class="text-slate-300">/${rawMax}</span></span>
-                                    <span class="text-slate-200">|</span>
-                                    <span class="text-[10px] text-teal-700 font-semibold" title="คะแนนจริง (แปลงสัดส่วน)">จริง <span class="font-extrabold text-teal-800">${realScore}</span><span class="text-teal-400">/${realMax}</span></span>
-                                </div>
+                                <span class="font-extrabold text-slate-700">${rawScore}<span class="text-slate-400 font-bold text-[10px]">/${rawMax}</span></span>
                             </div>
                             <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                                 <div class="${barColor} h-full transition-all duration-1000" style="width: ${percentage}%"></div>
@@ -1068,19 +1059,6 @@
                         <i id="icon-${sectionId}" class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-200"></i>
                     </button>
                     <div id="content-${sectionId}" class="hidden p-4 border-t border-slate-100 bg-white space-y-3.5 text-xs leading-relaxed text-slate-600">
-                        <div class="flex gap-3 mb-1">
-                            <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                                <span class="block text-[9px] text-slate-400 font-extrabold uppercase tracking-wider mb-1">คะแนนดิบ</span>
-                                <span class="text-lg font-black text-slate-700">${rawScore}</span>
-                                <span class="text-xs text-slate-400 font-bold">/${rawMax}</span>
-                            </div>
-                            <div class="flex items-center text-slate-300"><i class="fa-solid fa-arrow-right text-xs"></i></div>
-                            <div class="flex-1 bg-teal-50 border border-teal-200 rounded-xl p-3 text-center">
-                                <span class="block text-[9px] text-teal-600 font-extrabold uppercase tracking-wider mb-1">คะแนนจริง</span>
-                                <span class="text-lg font-black text-teal-700">${realScore}</span>
-                                <span class="text-xs text-teal-400 font-bold">/${realMax}</span>
-                            </div>
-                        </div>
                         <div class="space-y-1">
                             <span class="font-black text-slate-700 uppercase tracking-wider text-[9px] block">ข้อสังเกตและแนวคิดการสแกนเชิงลึก:</span>
                             <p class="text-slate-600 font-medium">${criterion.comment}</p>
@@ -1181,12 +1159,13 @@
                 titleEl.textContent = "แก้ไขเกณฑ์ประเมินประเภทคอมพิวเตอร์";
                 editIdEl.value = key;
                 keyInput.value = rubric.key;
-                keyInput.disabled = true; // locks key
+                keyInput.disabled = true;
                 nameInput.value = rubric.name;
                 descInput.value = rubric.desc;
+                document.getElementById('rubric-divisor').value = rubric.divisor || 2;
 
                 rubric.criteria.forEach(crit => {
-                    addCriteriaRow(crit.name, crit.max, crit.realMax || crit.max);
+                    addCriteriaRow(crit.name, crit.max);
                 });
             } else {
                 titleEl.textContent = "สร้างเกณฑ์การให้คะแนนคอมพิวเตอร์ใหม่";
@@ -1195,9 +1174,10 @@
                 keyInput.disabled = false;
                 nameInput.value = '';
                 descInput.value = '';
+                document.getElementById('rubric-divisor').value = 2;
 
-                addCriteriaRow('ความสมบูรณ์และถูกต้องของอัลกอริทึม', 100, 30);
-                addCriteriaRow('มาตรฐานสถาปัตยกรรมและการเลือกใช้โครงสร้างข้อมูล', 100, 20);
+                addCriteriaRow('ความสมบูรณ์และถูกต้องของอัลกอริทึม', 5);
+                addCriteriaRow('มาตรฐานสถาปัตยกรรมและการเลือกใช้โครงสร้างข้อมูล', 5);
             }
 
             calculateModalTotalScore();
@@ -1210,44 +1190,27 @@
         }
 
         /* Add detailed metric parameters input row */
-        function addCriteriaRow(name = '', rawMax = 100, realMax = 10) {
+        function addCriteriaRow(name = '', rawMax = 5) {
             const container = document.getElementById('modal-criteria-container');
             const rowId = `criteria-row-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
             const row = document.createElement('div');
             row.id = rowId;
-            row.className = "bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2";
+            row.className = "flex items-center gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100";
             row.innerHTML = `
-                <input type="text" placeholder="ระบุรายข้อย่อย เช่น ความครอบคลุมกรณีทดสอบ" value="${name}" required class="w-full text-xs border border-slate-200 rounded-lg p-2.5 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white font-medium">
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1.5 flex-1">
-                        <span class="text-[9px] text-slate-500 font-extrabold uppercase whitespace-nowrap">คะแนนดิบเต็ม</span>
-                        <input type="number" min="1" max="1000" value="${rawMax}" oninput="calculateModalTotalScore()" required class="flex-1 text-xs border border-slate-200 rounded-lg p-2 text-center font-bold focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white" title="คะแนนดิบ = สเกลที่ตรวจได้จริง เช่น 0-100">
-                    </div>
-                    <div class="flex items-center gap-1.5 flex-1">
-                        <span class="text-[9px] text-teal-700 font-extrabold uppercase whitespace-nowrap">คะแนนจริงเต็ม</span>
-                        <input type="number" min="1" max="1000" value="${realMax}" oninput="calculateModalTotalScore()" required class="flex-1 text-xs border border-teal-300 rounded-lg p-2 text-center font-bold focus:ring-1 focus:ring-teal-500 focus:outline-none bg-teal-50 text-teal-800" title="คะแนนจริง = สัดส่วนที่แปลงแล้ว เช่น 0-5">
-                    </div>
-                    <div class="text-[9px] text-slate-400 font-bold whitespace-nowrap bg-white border border-slate-200 rounded-lg px-2 py-1.5 flex-shrink-0" id="${rowId}-formula">
-                        ดิบ ÷ ${rawMax} × ${realMax}
-                    </div>
-                    <button type="button" onclick="removeCriteriaRow('${rowId}')" class="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition-colors flex-shrink-0" title="ลบรายข้อ">
-                        <i class="fa-solid fa-trash-can text-xs"></i>
-                    </button>
+                <input type="text" placeholder="ระบุรายข้อย่อย เช่น ความครอบคลุมกรณีทดสอบ" value="${name}" required
+                    class="flex-1 text-xs border border-slate-200 rounded-lg p-2.5 focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white font-medium">
+                <div class="flex items-center gap-1.5 flex-shrink-0">
+                    <span class="text-[9px] text-slate-500 font-extrabold uppercase whitespace-nowrap">คะแนนดิบเต็ม</span>
+                    <input type="number" min="1" max="1000" value="${rawMax}" oninput="calculateModalTotalScore()" required
+                        class="w-16 text-xs border border-slate-200 rounded-lg p-2 text-center font-black focus:ring-1 focus:ring-teal-500 focus:outline-none bg-white"
+                        title="คะแนนดิบเต็มของด้านนี้">
                 </div>
+                <button type="button" onclick="removeCriteriaRow('${rowId}')" class="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition-colors flex-shrink-0" title="ลบรายข้อ">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                </button>
             `;
             container.appendChild(row);
-
-            // Update formula display dynamically when either score changes
-            const inputs = row.querySelectorAll('input[type="number"]');
-            inputs.forEach(inp => {
-                inp.addEventListener('input', () => {
-                    const rMax = parseInt(inputs[0].value || 1);
-                    const wMax = parseInt(inputs[1].value || 1);
-                    row.querySelector(`#${rowId}-formula`).textContent = `ดิบ ÷ ${rMax} × ${wMax}`;
-                });
-            });
-
             calculateModalTotalScore();
         }
 
@@ -1262,19 +1225,28 @@
         /* Calculate scores configuration cumulative summary count */
         function calculateModalTotalScore() {
             const container = document.getElementById('modal-criteria-container');
+            const divisorEl = document.getElementById('rubric-divisor');
+            const divisor = Math.max(1, parseInt(divisorEl ? divisorEl.value : 2, 10) || 2);
+
             let totalRaw = 0;
-            let totalReal = 0;
             container.querySelectorAll('div[id^="criteria-row-"]').forEach(row => {
-                const nums = row.querySelectorAll('input[type="number"]');
-                if (nums.length >= 2) {
-                    totalRaw  += parseInt(nums[0].value || 0, 10);
-                    totalReal += parseInt(nums[1].value || 0, 10);
-                }
+                const num = row.querySelector('input[type="number"]');
+                if (num) totalRaw += parseInt(num.value || 0, 10);
             });
+
+            const totalReal = parseFloat((totalRaw / divisor).toFixed(2));
+
+            // Update summary bar
             document.getElementById('modal-computed-total-score').innerHTML =
-                `<span class="text-slate-600">ดิบ <span class="text-slate-800">${totalRaw}</span></span>` +
-                `<span class="mx-2 text-slate-300">|</span>` +
-                `<span class="text-teal-700">จริง <span class="font-black">${totalReal}</span> คะแนน</span>`;
+                `<span class="text-slate-500 font-semibold">ดิบ <strong class="text-slate-700">${totalRaw}</strong></span>` +
+                `<span class="mx-1.5 text-slate-300">÷ ${divisor} =</span>` +
+                `<span class="text-teal-700">จริง <strong class="text-teal-900">${totalReal}</strong> คะแนน</span>`;
+
+            // Update formula preview box
+            const previewEl = document.getElementById('modal-formula-preview');
+            const exampleEl = document.getElementById('modal-formula-example');
+            if (previewEl) previewEl.textContent = `ผลรวมดิบ ÷ ${divisor}`;
+            if (exampleEl) exampleEl.textContent = `เต็ม ${totalRaw} ÷ ${divisor} = ${totalReal} คะแนนจริง`;
         }
 
         /* Save configured settings profile logic */
@@ -1285,6 +1257,7 @@
             const key = document.getElementById('rubric-key').value.trim();
             const name = document.getElementById('rubric-name').value.trim();
             const desc = document.getElementById('rubric-desc').value.trim();
+            const divisor = Math.max(1, parseInt(document.getElementById('rubric-divisor').value || 2, 10));
 
             const container = document.getElementById('modal-criteria-container');
             const rows = container.children;
@@ -1299,12 +1272,10 @@
                 const inputs = rows[i].querySelectorAll('input');
                 const nameVal = inputs[0].value.trim();
                 const rawMax  = parseInt(inputs[1].value || 0, 10);
-                const realMax = parseInt(inputs[2].value || 0, 10);
 
                 criteriaList.push({
                     name: nameVal,
                     max: rawMax,
-                    realMax: realMax,
                     comment: '',
                     tips: ''
                 });
@@ -1315,14 +1286,14 @@
 
             try {
                 if (editKey) {
-                    await GASClient.post('updateRubric', { key: editKey, name, desc, criteria: criteriaList });
+                    await GASClient.post('updateRubric', { key: editKey, name, desc, divisor, criteria: criteriaList });
                     triggerToast(`ปรับปรุงแก้ไขเกณฑ์ "${name}" ลงฐานข้อมูล Sheets เสร็จเรียบร้อยแล้ว`, 'success');
                 } else {
                     if (rubricsData.some(r => r.key.toLowerCase() === key.toLowerCase())) {
                         triggerToast(`รหัสซ้ำหมวดหมู่ "${key}" ถูกใช้งานแล้วในระบบ กรุณาใช้รหัสอ้างอิงอื่น`, 'error');
                         return;
                     }
-                    await GASClient.post('createRubric', { key, name, desc, criteria: criteriaList });
+                    await GASClient.post('createRubric', { key, name, desc, divisor, criteria: criteriaList });
                     triggerToast(`สร้างและบันทึกหมวดหมู่ "${name}" ลงฐานข้อมูล Sheets สำเร็จ`, 'success');
                 }
 
