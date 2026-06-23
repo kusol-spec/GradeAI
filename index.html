@@ -821,10 +821,10 @@
 
                 tr.innerHTML = `
                     <td class="py-4 px-6">
-                        <div class="font-bold text-slate-800 hover:text-teal-700 transition-colors text-xs md:text-sm line-clamp-1">${item.title}</div>
+                        <div class="font-bold text-slate-800 hover:text-teal-700 transition-colors text-xs md:text-sm line-clamp-1">${escapeHtml(item.title)}</div>
                     </td>
                     <td class="py-4 px-6 text-[11px] text-slate-400 font-bold">${formatDate(item.date)}</td>
-                    <td class="py-4 px-6 font-bold text-slate-700">${item.student}</td>
+                    <td class="py-4 px-6 font-bold text-slate-700">${escapeHtml(item.student)}</td>
                     <td class="py-4 px-6 text-center">
                         <div class="flex flex-col items-center gap-1">
                             ${statusBadge}
@@ -904,7 +904,7 @@
                 card.innerHTML = `
                     <div>
                         <div class="flex items-center justify-between mb-4">
-                            <span class="text-[9px] bg-teal-50 text-teal-800 font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">${rubric.key}</span>
+                            <span class="text-[9px] bg-teal-50 text-teal-800 font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">${escapeHtml(rubric.key)}</span>
                             <div class="flex items-center gap-1.5">
                                 <button onclick="openRubricModal('${rubric.key}')" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-teal-600 transition-colors" title="แก้ไข">
                                     <i class="fa-solid fa-pen-to-square text-xs"></i>
@@ -914,8 +914,8 @@
                                 </button>
                             </div>
                         </div>
-                        <h4 class="font-extrabold text-slate-800 text-sm line-clamp-1">${rubric.name}</h4>
-                        <p class="text-xs text-slate-500 mt-2 line-clamp-3 leading-relaxed">${rubric.desc}</p>
+                        <h4 class="font-extrabold text-slate-800 text-sm line-clamp-1">${escapeHtml(rubric.name)}</h4>
+                        <p class="text-xs text-slate-500 mt-2 line-clamp-3 leading-relaxed">${escapeHtml(rubric.desc)}</p>
                     </div>
                     
                     <div class="mt-5 flex justify-between items-center border-t border-slate-100 pt-4 text-xs text-slate-500">
@@ -972,6 +972,9 @@
 
             document.getElementById('eval-doc-title').textContent = item.title;
             document.getElementById('eval-student-name').textContent = item.student;
+            // item.essayText ถูก sanitize ไว้แล้วฝั่ง Code.gs (sanitizeAiEssayHtml_) ก่อนบันทึกลง Sheets
+            // เหลือไว้เฉพาะ <span class="ai-highlight" onclick="showHighlightPopover(...)"> ที่ฟีเจอร์นี้ต้องใช้
+            // จึงปลอดภัยที่จะใช้ innerHTML ตรงนี้ (ห้ามใช้กับข้อความที่ไม่ได้ผ่านการ sanitize จากฝั่งเซิร์ฟเวอร์)
             document.getElementById('eval-essay-text').innerHTML = item.essayText;
 
             const fileLink = document.getElementById('eval-file-link');
@@ -1066,6 +1069,11 @@
                     ? item.criteriaScores[idx] 
                     : Math.round(criterion.max * 0.8);
 
+                // คำอธิบาย/คำแนะนำต้องอ่านจาก "ผลตรวจของชิ้นงานนี้" (item.criteriaFeedback) เท่านั้น
+                // ห้ามอ่านจาก criterion.comment / criterion.tips ของ rubric เพราะนั่นคือเกณฑ์กลางที่ใช้ร่วมกัน
+                // ทุกชิ้นงาน — ถ้าอ่านจากตรงนั้นจะเห็น comment ของนักเรียนคนอื่นที่ตรวจล่าสุดด้วย rubric เดียวกัน
+                const fb = (item.criteriaFeedback && item.criteriaFeedback[idx]) || { comment: '', tips: '' };
+
                 const rawMax = criterion.max;
                 const percentage = rawMax > 0 ? (rawScore / rawMax) * 100 : 0;
                 let barColor = 'bg-teal-600';
@@ -1079,7 +1087,7 @@
                     <button onclick="toggleAccordion('${sectionId}')" class="w-full flex items-center justify-between p-4 text-left font-bold text-slate-800 text-xs bg-slate-50/50 hover:bg-slate-50 transition-colors">
                         <div class="flex-1 mr-4">
                             <div class="flex justify-between items-center mb-1.5">
-                                <span class="font-bold text-slate-800 text-[11px]">${criterion.name}</span>
+                                <span class="font-bold text-slate-800 text-[11px]">${escapeHtml(criterion.name)}</span>
                                 <span class="font-extrabold text-slate-700">${rawScore}<span class="text-slate-400 font-bold text-[10px]">/${rawMax}</span></span>
                             </div>
                             <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
@@ -1091,13 +1099,13 @@
                     <div id="content-${sectionId}" class="hidden p-4 border-t border-slate-100 bg-white space-y-3.5 text-xs leading-relaxed text-slate-600">
                         <div class="space-y-1">
                             <span class="font-black text-slate-700 uppercase tracking-wider text-[9px] block">ข้อสังเกตและแนวคิดการสแกนเชิงลึก:</span>
-                            <p class="text-slate-600 font-medium">${criterion.comment}</p>
+                            <p class="text-slate-600 font-medium">${escapeHtml(fb.comment)}</p>
                         </div>
                         <div class="bg-teal-50/50 border border-teal-100 p-3.5 rounded-xl flex items-start gap-2.5 text-slate-700">
                             <i class="fa-regular fa-lightbulb text-teal-600 mt-0.5 text-sm flex-shrink-0"></i>
                             <div>
                                 <span class="font-black text-teal-900 text-[9px] uppercase tracking-wider block">แนวทางปรับปรุงและ Refactor (AI Suggestion)</span>
-                                <p class="text-[11px] text-teal-950 mt-1 font-medium">${criterion.tips}</p>
+                                <p class="text-[11px] text-teal-950 mt-1 font-medium">${escapeHtml(fb.tips)}</p>
                             </div>
                         </div>
                     </div>
@@ -1584,6 +1592,18 @@
             const options = { year: 'numeric', month: 'short', day: 'numeric' };
             const d = new Date(dateString);
             return d.toLocaleDateString('th-TH', options);
+        }
+
+        // Escape ข้อความก่อนแปะลงใน innerHTML — ป้องกัน XSS จากชื่อนักเรียน/ชื่อชิ้นงาน/ผลลัพธ์ AI
+        // ที่อาจมีอักขระ HTML ปนอยู่ (defense-in-depth ร่วมกับการ sanitize ฝั่ง Code.gs)
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function triggerPrintExport() {
