@@ -738,33 +738,39 @@
         /* Render Recent Submissions Table */
         /* Compute and render real-time dashboard statistics from live assessment data */
         function renderDashboardStats() {
-            const graded = assessments.filter(a => a.status === 'Graded' || a.status === 'Failed');
+            // นับเฉพาะที่ตรวจสำเร็จ (Graded) เท่านั้นในสถิติ — Failed (API error) ไม่นับเป็นคะแนน
+            const gradedOnly = assessments.filter(a => a.status === 'Graded');
+            const failedCount = assessments.filter(a => a.status === 'Failed').length;
             const avgEl = document.getElementById('stat-avg-score');
             const countEl = document.getElementById('stat-graded-count');
             const passEl = document.getElementById('stat-pass-rate');
             if (!avgEl || !countEl || !passEl) return;
 
-            if (graded.length === 0) {
+            if (gradedOnly.length === 0) {
                 avgEl.textContent = '–';
-                countEl.textContent = '0 ชิ้นงาน';
+                countEl.textContent = failedCount > 0 ? `0 ชิ้นงาน (${failedCount} ตรวจไม่สำเร็จ)` : '0 ชิ้นงาน';
                 passEl.textContent = '–';
                 return;
             }
 
             let totalPercent = 0;
             let passedCount = 0;
+            const passThreshold = 50;
 
-            graded.forEach(item => {
+            gradedOnly.forEach(item => {
                 const rubric = rubricsData.find(r => r.key === item.rubricKey);
                 const maxTotal = rubric ? rubric.criteria.reduce((s, c) => s + c.max, 0) : 100;
                 const pct = maxTotal > 0 ? (item.score / maxTotal) * 100 : 0;
                 totalPercent += pct;
-                if (item.status === 'Graded') passedCount++;
+                if (pct >= passThreshold) passedCount++;
             });
 
-            avgEl.textContent = (totalPercent / graded.length).toFixed(1) + '%';
-            countEl.textContent = `${graded.length} ชิ้นงาน`;
-            passEl.textContent = Math.round((passedCount / graded.length) * 100) + '%';
+            const displayCount = failedCount > 0
+                ? `${gradedOnly.length} ชิ้นงาน (+${failedCount} ตรวจไม่สำเร็จ)`
+                : `${gradedOnly.length} ชิ้นงาน`;
+            avgEl.textContent = (totalPercent / gradedOnly.length).toFixed(1) + '%';
+            countEl.textContent = displayCount;
+            passEl.textContent = Math.round((passedCount / gradedOnly.length) * 100) + '%';
         }
 
         function renderAssessmentsTable() {
@@ -792,7 +798,13 @@
                 const maxTotal = rubric ? rubric.criteria.reduce((sum, c) => sum + c.max, 0) : 100;
 
                 if (item.status === 'Graded') {
-                    statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/50 shadow-xs"><i class="fa-solid fa-circle-check text-[8px]"></i> ตรวจสอบแล้ว</span>`;
+                    const percentage = maxTotal > 0 ? (item.score / maxTotal) * 100 : 0;
+                    const passThreshold = 50; // ผ่านเกณฑ์ขั้นต่ำ 50% ของคะแนนดิบ
+                    if (percentage >= passThreshold) {
+                        statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/50 shadow-xs"><i class="fa-solid fa-circle-check text-[8px]"></i> ตรวจสอบแล้ว</span>`;
+                    } else {
+                        statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/50 shadow-xs"><i class="fa-solid fa-triangle-exclamation text-[8px]"></i> ตรวจแล้ว (คะแนนต่ำ)</span>`;
+                    }
                     const div = rubric ? rubric.divisor || 2 : 2;
                     const realScore = parseFloat((item.score / div).toFixed(1));
                     const realMax   = parseFloat((maxTotal / div).toFixed(1));
@@ -801,11 +813,9 @@
                     statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/50 shadow-xs"><i class="fa-solid fa-spinner animate-spin text-[8px]"></i> กำลังคอมไพล์</span>`;
                     scoreText = `<span class="text-[10px] text-slate-400 font-bold">กำลังประมวลผล...</span>`;
                 } else {
-                    statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200/50 shadow-xs"><i class="fa-solid fa-triangle-exclamation text-[8px]"></i> ตกเกณฑ์ประเมิน</span>`;
-                    const div = rubric ? rubric.divisor || 2 : 2;
-                    const realScore = parseFloat((item.score / div).toFixed(1));
-                    const realMax   = parseFloat((maxTotal / div).toFixed(1));
-                    scoreText = `<span class="font-extrabold text-rose-600 text-sm">${realScore}</span><span class="text-[10px] text-slate-400 font-bold">/${realMax}</span><span class="text-[9px] text-slate-400 ml-1">(ดิบ ${item.score})</span>`;
+                    // status === 'Failed' — ตรวจไม่สำเร็จ (API error) ไม่ใช่ "ตรวจแล้วได้คะแนนต่ำ"
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200/50 shadow-xs"><i class="fa-solid fa-circle-xmark text-[8px]"></i> ตรวจไม่สำเร็จ</span>`;
+                    scoreText = `<span class="text-[10px] text-slate-400 font-bold italic">— (API error)</span>`;
                 }
 
                 const tr = document.createElement('tr');
@@ -1023,13 +1033,30 @@
                 return;
             }
 
-            const score = item.score;
-            // คะแนนดิบรวม = ผลรวม criteriaScores, คะแนนจริง = ดิบรวม ÷ divisor
+            // แสดงหน้า Failed แยกออกมา — ไม่ใช่ "ได้คะแนน 0" แต่ "ตรวจ API ไม่สำเร็จ"
+            if (item.status === 'Failed') {
+                gaugeScoreText.innerHTML = `<span class="text-[11px] font-bold text-rose-500 text-center leading-snug block">ตรวจ<br>ไม่สำเร็จ</span>`;
+                progressCircle.style.strokeDashoffset = '263.89';
+                progressCircle.setAttribute('stroke', '#ef4444');
+                document.getElementById('criteria-accordion-container').innerHTML = `
+                    <div class="text-center py-10 text-slate-400 bg-rose-50/40 rounded-2xl border border-dashed border-rose-200">
+                        <i class="fa-solid fa-circle-xmark text-3xl mb-3 block text-rose-400"></i>
+                        <p class="text-xs font-bold text-rose-700">การตรวจด้วย AI ไม่สำเร็จ</p>
+                        <p class="text-[11px] mt-2 text-slate-500 leading-relaxed px-4">สาเหตุที่พบบ่อย: API Key ไม่มีสิทธิ์ (403) หรือโควต้าหมด (429)<br>ส่งชิ้นงานใหม่อีกครั้งหลังแก้ปัญหา API Key แล้ว</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // คะแนนดิบรวม: อ่านจาก criteriaScores จริงเท่านั้น — ไม่มี fallback สมมุติ
+            // (เดิมมี fallback Math.round(c.max * 0.8) ซึ่งทำให้ชิ้นงาน Failed แสดงคะแนน 80% ผิดพลาด)
             let totalRawScore = 0;
-            rubric.criteria.forEach((c, idx) => {
-                totalRawScore += (item.criteriaScores && item.criteriaScores[idx] !== undefined)
-                    ? item.criteriaScores[idx] : Math.round(c.max * 0.8);
-            });
+            if (item.criteriaScores && item.criteriaScores.length > 0) {
+                item.criteriaScores.forEach(s => { totalRawScore += (Number(s) || 0); });
+            } else {
+                // ไม่มี criteriaScores (เช่น ชิ้นงานเก่าก่อนอัปเดต) — ใช้ item.score โดยตรง
+                totalRawScore = item.score || 0;
+            }
             const totalRealScore = parseFloat((totalRawScore / divisor).toFixed(2));
 
             gaugeScoreText.innerHTML = `
@@ -1042,7 +1069,7 @@
             
             // Circle perimeter calculations = 2 * PI * r = 2 * 3.14159 * 42 = 263.89
             const perimeter = 263.89;
-            const percentageValue = Math.min(100, Math.max(0, (score / maxTotalScore) * 100));
+            const percentageValue = Math.min(100, Math.max(0, (totalRawScore / maxTotalScore) * 100));
             const targetOffset = perimeter - (perimeter * (percentageValue / 100));
             
             progressCircle.style.setProperty('--target-offset', targetOffset);
@@ -1061,9 +1088,11 @@
             container.innerHTML = '';
 
             rubric.criteria.forEach((criterion, idx) => {
-                const rawScore = (item.criteriaScores && item.criteriaScores[idx] !== undefined) 
-                    ? item.criteriaScores[idx] 
-                    : Math.round(criterion.max * 0.8);
+                // ใช้คะแนนจริงจาก criteriaScores เท่านั้น — ถ้าไม่มีแสดง 0
+                // (เดิมมี fallback Math.round(criterion.max * 0.8) ทำให้ชิ้นงานที่ตรวจไม่สำเร็จแสดงคะแนนผิด)
+                const rawScore = (item.criteriaScores && item.criteriaScores[idx] !== undefined)
+                    ? item.criteriaScores[idx]
+                    : 0;
 
                 // คำอธิบาย/คำแนะนำต้องอ่านจาก "ผลตรวจของชิ้นงานนี้" (item.criteriaFeedback) เท่านั้น
                 // ห้ามอ่านจาก criterion.comment / criterion.tips ของ rubric เพราะนั่นคือเกณฑ์กลางที่ใช้ร่วมกัน
