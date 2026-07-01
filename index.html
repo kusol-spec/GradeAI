@@ -135,15 +135,43 @@
 
     <!-- Backend Not Configured Overlay -->
     <div id="setup-required-overlay" class="hidden fixed inset-0 z-40 bg-[#f8fafc] flex items-center justify-center p-6 no-print">
-        <div class="bg-white border border-slate-200 rounded-2xl shadow-premium p-8 max-w-md w-full text-center">
-            <div class="bg-amber-50 text-amber-600 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <i class="fa-solid fa-database text-2xl"></i>
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-premium p-8 max-w-lg w-full text-center">
+            <!-- State A: ยังไม่ได้ตั้ง URL (id="setup-state-nourl") -->
+            <div id="setup-state-nourl">
+                <div class="bg-amber-50 text-amber-600 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <i class="fa-solid fa-database text-2xl"></i>
+                </div>
+                <h3 class="text-base font-extrabold text-slate-800 mb-2">ยังไม่ได้เชื่อมต่อฐานข้อมูล</h3>
+                <p class="text-xs text-slate-500 mb-5 leading-relaxed">กรุณาตั้งค่า Google Apps Script Web App URL เพื่อเชื่อมต่อกับฐานข้อมูล Google Sheets ก่อนเริ่มใช้งานระบบ</p>
+                <div class="space-y-3">
+                    <input type="url" id="setup-gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none">
+                    <button onclick="saveInitialGasUrl()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all">เชื่อมต่อและเริ่มใช้งาน</button>
+                </div>
             </div>
-            <h3 class="text-base font-extrabold text-slate-800 mb-2">ยังไม่ได้เชื่อมต่อฐานข้อมูล</h3>
-            <p class="text-xs text-slate-500 mb-5 leading-relaxed">กรุณาตั้งค่า Google Apps Script Web App URL เพื่อเชื่อมต่อกับฐานข้อมูล Google Sheets ก่อนเริ่มใช้งานระบบ</p>
-            <div class="space-y-3">
-                <input type="url" id="setup-gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none">
-                <button onclick="saveInitialGasUrl()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all">เชื่อมต่อและเริ่มใช้งาน</button>
+            <!-- State B: มี URL แล้วแต่เชื่อมต่อไม่ได้ (CORS / Deploy ไม่ถูก) -->
+            <div id="setup-state-cors" class="hidden">
+                <div class="bg-rose-50 text-rose-600 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <i class="fa-solid fa-plug-circle-xmark text-2xl"></i>
+                </div>
+                <h3 class="text-base font-extrabold text-slate-800 mb-2">เชื่อมต่อ Apps Script ไม่ได้</h3>
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-4 space-y-2">
+                    <p class="text-[11px] font-extrabold text-amber-800 flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation"></i> สาเหตุที่พบบ่อย: Apps Script ยังไม่ได้ Deploy ใหม่</p>
+                    <ol class="text-[11px] text-slate-600 space-y-1.5 list-decimal list-inside leading-relaxed">
+                        <li>เปิด <a href="https://script.google.com" target="_blank" class="text-teal-600 underline font-bold">script.google.com</a> → เปิดโปรเจกต์</li>
+                        <li>วางโค้ดใหม่จากไฟล์ <code class="bg-slate-100 px-1 rounded">Code.gs</code> ที่ดาวน์โหลด</li>
+                        <li>คลิก <strong>Deploy → Manage deployments → Edit (✏️)</strong></li>
+                        <li>เปลี่ยน Version เป็น <strong>"New version"</strong></li>
+                        <li><strong>Who has access: Anyone</strong> ← สำคัญมาก</li>
+                        <li>กด Deploy → Copy URL ใหม่มาวางด้านล่าง</li>
+                    </ol>
+                </div>
+                <div class="space-y-2">
+                    <input type="url" id="setup-gas-url-input-cors" placeholder="https://script.google.com/macros/s/.../exec (URL ใหม่หลัง Deploy)" class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none">
+                    <div class="flex gap-2">
+                        <button onclick="retryConnection()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all">ลองเชื่อมต่อใหม่</button>
+                        <button onclick="document.getElementById('setup-required-overlay').classList.add('hidden')" class="px-4 py-3 border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition-all">ปิด</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -707,12 +735,26 @@
             initApp();
         };
 
+        function showSetupOverlay(hasCorsError) {
+            document.getElementById('setup-required-overlay').classList.remove('hidden');
+            if (hasCorsError) {
+                document.getElementById('setup-state-nourl').classList.add('hidden');
+                document.getElementById('setup-state-cors').classList.remove('hidden');
+                // sync URL into CORS input too
+                const url = localStorage.getItem('gradeai_gas_url') || '';
+                document.getElementById('setup-gas-url-input-cors').value = url;
+            } else {
+                document.getElementById('setup-state-nourl').classList.remove('hidden');
+                document.getElementById('setup-state-cors').classList.add('hidden');
+            }
+        }
+
         async function initApp() {
             const gasUrl = GASClient.getUrl();
 
             if (!gasUrl) {
                 document.getElementById('loading-overlay').classList.add('hidden');
-                document.getElementById('setup-required-overlay').classList.remove('hidden');
+                showSetupOverlay(false);
                 return;
             }
 
@@ -737,9 +779,30 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('loading-overlay').classList.add('hidden');
-                document.getElementById('setup-required-overlay').classList.remove('hidden');
-                triggerToast('เชื่อมต่อฐานข้อมูล Google Sheets ไม่สำเร็จ: ' + err.message, 'error');
+                // ตรวจว่าเป็น CORS/network error หรือเปล่า
+                const isCors = err.message && (
+                    err.message.includes('fetch') ||
+                    err.message.includes('Failed') ||
+                    err.message.includes('NetworkError') ||
+                    err.message.includes('CORS')
+                );
+                showSetupOverlay(isCors);
+                if (!isCors) {
+                    triggerToast('เชื่อมต่อฐานข้อมูลไม่สำเร็จ: ' + err.message, 'error');
+                }
             }
+        }
+
+        async function retryConnection() {
+            const newUrl = document.getElementById('setup-gas-url-input-cors').value.trim();
+            if (newUrl && newUrl.startsWith('https://')) {
+                localStorage.setItem('gradeai_gas_url', newUrl);
+                document.getElementById('settings-gas-url').value = newUrl;
+                updateCloudIndicator();
+            }
+            document.getElementById('setup-required-overlay').classList.add('hidden');
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            await initApp();
         }
 
         /* Used by the setup-required overlay on first run */
@@ -1551,24 +1614,25 @@
         async function saveApiKey() {
             const keyInput = document.getElementById('settings-api-key');
             const statusEl = document.getElementById('api-key-status');
-            const key = keyInput.value.trim();
+            // trim() + ลบ whitespace/newline ที่อาจติดมาจากการวาง clipboard
+            const key = keyInput.value.replace(/[\s\r\n]+/g, '').trim();
+
+            statusEl.classList.remove('hidden');
 
             if (!key) {
                 statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200';
                 statusEl.textContent = '❌ กรุณาใส่ API Key ก่อน';
-                statusEl.classList.remove('hidden');
                 return;
             }
-            if (!key.startsWith('AIza')) {
+            // Google API key มักมีความยาว 39 ตัวอักษร แต่ไม่ตรวจ prefix เข้มงวดเพราะอาจเปลี่ยนรูปแบบได้
+            if (key.length < 20) {
                 statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200';
-                statusEl.textContent = '❌ รูปแบบ Key ไม่ถูกต้อง — Gemini API Key ต้องขึ้นต้นด้วย AIza';
-                statusEl.classList.remove('hidden');
+                statusEl.textContent = `❌ Key สั้นเกินไป (${key.length} ตัว) — กรุณาตรวจสอบว่าวาง Key ครบถ้วน`;
                 return;
             }
 
             statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200';
-            statusEl.textContent = '⏳ กำลังบันทึก...';
-            statusEl.classList.remove('hidden');
+            statusEl.textContent = `⏳ กำลังบันทึก key (${key.length} ตัวอักษร)...`;
 
             try {
                 await GASClient.post('setGeminiApiKey', { key });
@@ -1576,8 +1640,15 @@
                 statusEl.textContent = '✅ บันทึก API Key เรียบร้อย — ลองส่งชิ้นงานใหม่ได้เลย';
                 keyInput.value = '';
             } catch (err) {
-                statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200';
-                statusEl.textContent = '❌ บันทึกไม่สำเร็จ: ' + err.message;
+                const msg = err.message || '';
+                // ถ้า error คือ CORS/fetch failed — Apps Script ยังไม่ได้ Deploy ใหม่
+                if (msg.includes('fetch') || msg.includes('CORS') || msg.includes('network') || msg.includes('Failed')) {
+                    statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-amber-50 text-amber-800 border border-amber-200';
+                    statusEl.textContent = '⚠️ เชื่อมต่อ Apps Script ไม่ได้ — กรุณา Deploy Code.gs ใหม่ก่อน แล้วลองอีกครั้ง (ดูขั้นตอนใน SETUP.md)';
+                } else {
+                    statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200';
+                    statusEl.textContent = '❌ บันทึกไม่สำเร็จ: ' + msg;
+                }
             }
         }
 
