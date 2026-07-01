@@ -344,10 +344,16 @@
                 <div class="flex-1 overflow-y-auto border-r border-slate-200/80 bg-slate-50 p-4 md:p-6 flex flex-col gap-4">
                     <!-- Control / Navigation Strip -->
                     <div class="flex items-center justify-between no-print gap-3">
-                        <button onclick="goBackToDashboard()" class="flex items-center gap-2 text-slate-700 hover:text-white hover:bg-slate-800 font-bold text-xs transition-all bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm">
-                            <i class="fa-solid fa-arrow-left-long"></i>
-                            กลับหน้าแดชบอร์ด
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button onclick="goBackToDashboard()" class="flex items-center gap-2 text-slate-700 hover:text-white hover:bg-slate-800 font-bold text-xs transition-all bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm">
+                                <i class="fa-solid fa-arrow-left-long"></i>
+                                กลับหน้าแดชบอร์ด
+                            </button>
+                            <button id="eval-delete-btn" onclick="confirmDeleteCurrentAssessment()" class="flex items-center gap-2 text-rose-600 hover:text-white hover:bg-rose-600 font-bold text-xs transition-all bg-white px-3.5 py-2 rounded-xl border border-rose-200 shadow-sm">
+                                <i class="fa-solid fa-trash-can"></i>
+                                ลบชิ้นงานนี้
+                            </button>
+                        </div>
                         <div class="flex items-center gap-2">
                             <span class="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-3.5 py-1.5 rounded-full border border-emerald-100/60 shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-database text-emerald-600"></i> ข้อมูลจริงจาก Google Sheets</span>
                             <span class="text-[10px] text-teal-800 font-bold bg-teal-50 px-3.5 py-1.5 rounded-full border border-teal-100/60 shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-code text-teal-600"></i> โหมดสแกนสถาปัตยกรรม</span>
@@ -464,12 +470,34 @@
                             </div>
                         </div>
 
+                        <!-- Gemini API Key section -->
                         <div class="border-t border-slate-100 pt-5">
-                            <label class="block text-[10px] font-black text-slate-700 uppercase mb-2 tracking-wider">โมเดลประมวลผลโค้ดคอมพิวเตอร์หลัก (AI Core Engine)</label>
+                            <h4 class="text-xs font-black text-amber-700 uppercase mb-3 tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-key text-amber-500"></i> Gemini API Key (สำหรับระบบตรวจ AI)
+                            </h4>
+                            <p class="text-[11px] text-slate-500 mb-3">
+                                Key จะถูกส่งไปเก็บที่ฝั่ง Apps Script (Script Properties) — ไม่ถูกเก็บในเบราว์เซอร์ ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank" class="text-teal-600 underline font-bold">aistudio.google.com/apikey</a>
+                            </p>
+                            <div class="flex gap-2 items-start">
+                                <div class="flex-1">
+                                    <input type="password" id="settings-api-key" placeholder="AIza..." autocomplete="off"
+                                        class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none bg-white font-mono">
+                                    <p class="text-[9px] text-slate-400 mt-1">เริ่มต้นด้วย <code class="bg-slate-100 px-1 rounded">AIza</code> — ถ้าขึ้น error 403 ให้ตรวจสอบว่า Gemini API ถูก enable ในโปรเจกต์แล้ว</p>
+                                </div>
+                                <button onclick="saveApiKey()" class="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-4 py-3 rounded-xl transition-all flex items-center gap-2">
+                                    <i class="fa-solid fa-floppy-disk"></i> บันทึก Key
+                                </button>
+                            </div>
+                            <div id="api-key-status" class="hidden mt-2 text-[11px] font-semibold rounded-lg px-3 py-2"></div>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-5">
+                            <label class="block text-[10px] font-black text-slate-700 uppercase mb-2 tracking-wider">โมเดล AI ที่ใช้ตรวจ (กำหนดใน Code.gs)</label>
                             <select class="w-full text-xs border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:outline-none bg-white">
-                                <option>Gemini 2.0 Flash (ผ่าน Google Apps Script — ตรวจให้คะแนนและคอมเมนต์จริง)</option>
+                                <option>Gemini 2.5 Flash — ใช้งานอยู่ (free tier, แนะนำ)</option>
+                                <option>Gemini 3.5 Flash — ดีกว่า แต่แพงกว่า (เปลี่ยนใน GEMINI_MODEL ของ Code.gs)</option>
                             </select>
-                            <p class="text-[9px] text-slate-400 mt-1.5">โมเดลและพรอมต์การตรวจถูกกำหนดไว้ในฟังก์ชัน callGeminiForGrading ภายในไฟล์ Code.gs สามารถแก้ไขได้ตามต้องการ</p>
+                            <p class="text-[9px] text-slate-400 mt-1.5">เปลี่ยนโมเดลได้โดยแก้ค่า <code class="bg-slate-100 px-1 rounded">GEMINI_MODEL</code> ที่บรรทัดบนสุดของ Code.gs แล้ว Deploy ใหม่ — <span class="text-rose-500 font-bold">gemini-2.0-flash ถูกปิดให้บริการแล้ว (1 มิ.ย. 2026)</span></p>
                         </div>
                         <div class="border-t border-slate-100 pt-5">
                             <label class="block text-[10px] font-black text-slate-700 uppercase mb-3 tracking-wider">ระดับความเข้มงวดในการตรวจคุณภาพโค้ด</label>
@@ -838,9 +866,14 @@
                         </div>
                     </td>
                     <td class="py-4 px-6 text-right">
-                        <button onclick="selectAssessment('${item.id}')" class="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-teal-600 hover:bg-teal-50 hover:border-teal-300 shadow-sm transition-all flex items-center gap-1 ml-auto">
-                            วิเคราะห์สถาปัตย์ <i class="fa-solid fa-chevron-right text-[9px]"></i>
-                        </button>
+                        <div class="flex items-center justify-end gap-2">
+                            <button onclick="selectAssessment('${item.id}')" class="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-teal-600 hover:bg-teal-50 hover:border-teal-300 shadow-sm transition-all flex items-center gap-1">
+                                วิเคราะห์สถาปัตย์ <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                            </button>
+                            <button onclick="confirmDeleteAssessment('${item.id}', '${escapeHtml(item.title)}')" class="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 shadow-sm transition-all" title="ลบชิ้นงานนี้">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -1514,6 +1547,69 @@
         */
 
         // Save the Apps Script Web App URL — this IS the database connection, not just a "sync"
+        // ---- API KEY SAVE ----
+        async function saveApiKey() {
+            const keyInput = document.getElementById('settings-api-key');
+            const statusEl = document.getElementById('api-key-status');
+            const key = keyInput.value.trim();
+
+            if (!key) {
+                statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200';
+                statusEl.textContent = '❌ กรุณาใส่ API Key ก่อน';
+                statusEl.classList.remove('hidden');
+                return;
+            }
+            if (!key.startsWith('AIza')) {
+                statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200';
+                statusEl.textContent = '❌ รูปแบบ Key ไม่ถูกต้อง — Gemini API Key ต้องขึ้นต้นด้วย AIza';
+                statusEl.classList.remove('hidden');
+                return;
+            }
+
+            statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200';
+            statusEl.textContent = '⏳ กำลังบันทึก...';
+            statusEl.classList.remove('hidden');
+
+            try {
+                await GASClient.post('setGeminiApiKey', { key });
+                statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200';
+                statusEl.textContent = '✅ บันทึก API Key เรียบร้อย — ลองส่งชิ้นงานใหม่ได้เลย';
+                keyInput.value = '';
+            } catch (err) {
+                statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200';
+                statusEl.textContent = '❌ บันทึกไม่สำเร็จ: ' + err.message;
+            }
+        }
+
+        // ---- DELETE ASSESSMENT ----
+        // เรียกจากปุ่มในตาราง Dashboard
+        function confirmDeleteAssessment(id, title) {
+            if (!confirm(`ยืนยันลบชิ้นงาน "${title}" ?\n\nการลบนี้ไม่สามารถเรียกคืนได้`)) return;
+            deleteAssessmentById(id);
+        }
+
+        // เรียกจากปุ่มในหน้าวิเคราะห์ละเอียด
+        function confirmDeleteCurrentAssessment() {
+            const item = assessments.find(a => a.id === currentAssessmentId);
+            if (!item) return;
+            if (!confirm(`ยืนยันลบชิ้นงาน "${item.title}" ?\n\nการลบนี้ไม่สามารถเรียกคืนได้`)) return;
+            deleteAssessmentById(item.id, true);
+        }
+
+        async function deleteAssessmentById(id, goBack) {
+            try {
+                await GASClient.post('deleteAssessment', { id });
+                // อัปเดต local state ทันทีโดยไม่ต้อง reload ทั้งหน้า
+                assessments = assessments.filter(a => a.id !== id);
+                renderAssessmentsTable();
+                renderDashboardStats();
+                triggerToast('ลบชิ้นงานเรียบร้อยแล้ว', 'success');
+                if (goBack) goBackToDashboard();
+            } catch (err) {
+                triggerToast('ลบไม่สำเร็จ: ' + err.message, 'error');
+            }
+        }
+
         function saveDeploymentSettings() {
             const gasUrl = document.getElementById('settings-gas-url').value.trim();
             localStorage.setItem('gradeai_gas_url', gasUrl);
