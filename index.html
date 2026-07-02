@@ -1635,9 +1635,10 @@
             statusEl.textContent = `⏳ กำลังบันทึก key (${key.length} ตัวอักษร)...`;
 
             try {
-                await GASClient.post('setGeminiApiKey', { key });
+                const result = await GASClient.post('setGeminiApiKey', { key });
+                const fmt = result.format || '';
                 statusEl.className = 'mt-2 text-[11px] font-semibold rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200';
-                statusEl.textContent = '✅ บันทึก API Key เรียบร้อย — ลองส่งชิ้นงานใหม่ได้เลย';
+                statusEl.textContent = `✅ บันทึก API Key เรียบร้อย (${fmt}) — ลองส่งชิ้นงานใหม่ได้เลย`;
                 keyInput.value = '';
             } catch (err) {
                 const msg = err.message || '';
